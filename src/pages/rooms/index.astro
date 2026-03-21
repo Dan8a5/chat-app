@@ -48,14 +48,14 @@ const allRooms = await db
     </div>
   </header>
 
-  <main class="max-w-xl mx-auto px-6 py-10" x-data>
+  <main class="max-w-xl mx-auto px-6 py-10">
     <!-- Page title -->
     <div class="flex items-center justify-between mb-8">
       <div>
         <p class="text-[0.6rem] tracking-[0.2em] text-gray-400 uppercase mb-1">Channels</p>
         <h1 class="text-2xl font-black tracking-tight uppercase">Rooms</h1>
       </div>
-      <button @click="$dispatch('open-new-room')"
+      <button @click="newRoomOpen = true"
               class="text-[0.65rem] tracking-[0.15em] uppercase font-bold border border-black dark:border-white
                      px-4 py-2 hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-colors">
         + New
@@ -103,10 +103,8 @@ const allRooms = await db
   </main>
 
   <!-- New Room Modal -->
-  <div x-data="{ open: false, name: '' }"
-       @open-new-room.window="open = true"
-       x-show="open" x-cloak
-       @keydown.escape.window="open = false"
+  <div x-show="newRoomOpen" x-cloak
+       @keydown.escape.window="newRoomOpen = false"
        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
     <div class="bg-white dark:bg-[#111] border border-gray-200 dark:border-gray-800 p-8 w-full max-w-sm mx-4"
          @click.stop>
@@ -121,7 +119,7 @@ const allRooms = await db
           Room Name
         </label>
         <input type="text" name="name"
-               x-model="name"
+               x-model="roomName"
                placeholder="e.g. General, Random..."
                minlength="2" maxlength="50"
                class="w-full bg-transparent border-0 border-b border-gray-300 dark:border-gray-700
@@ -131,7 +129,7 @@ const allRooms = await db
       </form>
 
       <div class="flex gap-3 mt-6">
-        <button type="button" @click="open = false; name = ''"
+        <button type="button" @click="newRoomOpen = false; roomName = ''"
                 class="flex-1 text-[0.65rem] tracking-[0.15em] uppercase font-bold border border-gray-300 dark:border-gray-700
                        py-2.5 hover:border-black dark:hover:border-white transition-colors">
           Cancel
