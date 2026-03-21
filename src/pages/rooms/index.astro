@@ -25,21 +25,17 @@ const allRooms = await db
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Live Chat — Rooms</title>
-  <script src="/alpine.min.js" defer is:inline></script>
-  <script src="/htmx.min.js" defer is:inline></script>
 </head>
-<body class="min-h-screen bg-white dark:bg-black text-black dark:text-white"
-      x-data="{ isDark: localStorage.getItem('theme') === 'dark', newRoomOpen: false, roomName: '' }"
-      :class="{ dark: isDark }">
+<body class="min-h-screen bg-white dark:bg-black text-black dark:text-white">
 
   <!-- Header -->
   <header class="border-b border-gray-200 dark:border-gray-800 px-6 py-3 flex items-center justify-between">
     <span class="text-xs font-bold tracking-[0.2em] uppercase">Live Chat</span>
     <div class="flex items-center gap-4">
       <span class="text-xs tracking-wider text-gray-400 uppercase">{nick}</span>
-      <button @click="isDark = !isDark; localStorage.setItem('theme', isDark ? 'dark' : 'light')"
+      <button id="theme-btn" onclick="toggleTheme()"
               class="text-[0.65rem] tracking-[0.15em] uppercase text-gray-400 hover:text-black dark:hover:text-white transition-colors">
-        <span x-text="isDark ? 'Light' : 'Dark'"></span>
+        Dark
       </button>
       <a href="/api/signout"
          class="text-[0.65rem] tracking-[0.15em] uppercase text-gray-400 hover:text-black dark:hover:text-white transition-colors">
@@ -140,8 +136,14 @@ const allRooms = await db
   </div>
 
   <script is:inline>
+    function toggleTheme() {
+      const isDark = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('theme', isDark ? 'dark' : 'light');
+      document.getElementById('theme-btn').textContent = isDark ? 'Light' : 'Dark';
+    }
     if (localStorage.getItem('theme') === 'dark') {
       document.documentElement.classList.add('dark');
+      document.getElementById('theme-btn').textContent = 'Light';
     }
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') document.getElementById('new-room-modal').style.display = 'none';
