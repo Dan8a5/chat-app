@@ -1,5 +1,7 @@
 # chat-app
 
+![CI](https://github.com/Dan8a5/chat-app/actions/workflows/ci.yml/badge.svg)
+
 A real-time chat application with rooms, presence, typing indicators, and @mention support.
 
 **Live on Railway** — auto-deploys on every merge to `main`.
@@ -59,6 +61,10 @@ npm run dev
 | `npm run seed` | Seed the database with sample data |
 
 ---
+
+## Preview
+
+<!-- Add screenshot or demo GIF here -->
 
 ## Contributing
 
