@@ -1,0 +1,244 @@
+---
+import '../../styles/global.css';
+import { db } from '../../lib/db/index.js';
+import { rooms, messages } from '../../lib/db/schema.js';
+import { messageHtml, presenceHtml, loadMoreSentinelHtml } from '../../lib/html/fragments.js';
+import { eq, desc } from 'drizzle-orm';
+
+const { slug } = Astro.params;
+const nick = Astro.cookies.get('nickname')?.value!;
+
+const [room] = await db.select().from(rooms).where(eq(rooms.slug, slug!)).limit(1);
+if (!room) return Astro.redirect('/rooms');
+
+// Load initial 50 messages (desc, then reverse)
+const initialRows = await db
+  .select()
+  .from(messages)
+  .where(eq(messages.roomId, room.id))
+  .orderBy(desc(messages.createdAt))
+  .limit(51);
+
+const hasMore = initialRows.length > 50;
+const batch = hasMore ? initialRows.slice(0, 50) : initialRows;
+const ordered = [...batch].reverse();
+
+const initialMessagesHtml = ordered.map(messageHtml).join('');
+const sentinelHtml = hasMore ? loadMoreSentinelHtml(slug!, ordered[0].id) : '';
+const initialPresenceHtml = presenceHtml([]);
+
+// All rooms for sidebar
+const allRooms = await db.select().from(rooms).orderBy(rooms.createdAt);
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>#{room.name} — ChatApp</title>
+  <script src="/htmx.min.js" is:inline></script>
+  <script src="/sse.js" is:inline></script>
+  <script src="/alpine.min.js" defer is:inline></script>
+</head>
+<body class="h-screen flex flex-col bg-white dark:bg-gray-900 overflow-hidden"
+      x-data="darkMode()" :class="{ dark: isDark }">
+
+  <!-- Header -->
+  <header class="flex-shrink-0 flex items-center justify-between px-4 py-3
+                 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-10">
+    <div class="flex items-center gap-3">
+      <!-- Mobile sidebar toggle -->
+      <button class="sm:hidden text-gray-500 hover:text-gray-700 dark:text-gray-400"
+              @click="sidebarOpen = !sidebarOpen" x-data="{ sidebarOpen: false }">
+        ☰
+      </button>
+      <a href="/rooms" class="flex items-center gap-2">
+        <span class="text-xl">💬</span>
+        <span class="font-bold text-gray-900 dark:text-white hidden sm:inline">ChatApp</span>
+      </a>
+      <span class="text-gray-400">/</span>
+      <span class="font-semibold text-indigo-600 dark:text-indigo-400">#{room.name}</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="text-sm text-gray-500 dark:text-gray-400 hidden sm:inline">{nick}</span>
+      <a href="/api/signout" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline hidden sm:inline">Sign out</a>
+      <button @click="toggle()" title="Toggle dark mode"
+              class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-lg">
+        <span x-text="isDark ? '☀️' : '🌙'"></span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main layout -->
+  <div class="flex flex-1 overflow-hidden">
+    <!-- Sidebar: room list -->
+    <aside class="w-56 flex-shrink-0 border-r border-gray-200 dark:border-gray-700
+                  bg-gray-50 dark:bg-gray-800 flex flex-col overflow-y-auto hidden sm:flex">
+      <div class="px-3 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+        Rooms
+      </div>
+      {allRooms.map(r => (
+        <a href={`/rooms/${r.slug}`}
+           class={`flex items-center gap-2 px-3 py-2 text-sm rounded mx-1 mb-0.5 transition
+                   ${r.slug === slug
+                     ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-semibold'
+                     : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
+          <span class="text-gray-400">#</span>
+          <span>{r.name}</span>
+        </a>
+      ))}
+      <div class="mt-auto p-3">
+        <a href="/rooms"
+           class="flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
+          + New Room
+        </a>
+      </div>
+    </aside>
+
+    <!-- Chat area (SSE root) -->
+    <div class="flex flex-1 flex-col overflow-hidden"
+         id="sse-root"
+         hx-ext="sse"
+         sse-connect={`/api/rooms/${slug}/sse`}>
+
+      <!-- Messages -->
+      <div id="messages-list"
+           sse-swap="message"
+           hx-swap="beforeend scroll:#messages-list:bottom"
+           class="flex-1 overflow-y-auto py-2 flex flex-col">
+        <!-- Load more sentinel (if older messages exist) -->
+        <div set:html={sentinelHtml} />
+        <!-- Initial messages -->
+        <div set:html={initialMessagesHtml} />
+      </div>
+
+      <!-- Typing indicator -->
+      <div class="px-4 py-1 min-h-[24px]">
+        <div id="typing-indicator"
+             sse-swap="typing"
+             hx-swap="innerHTML">
+        </div>
+      </div>
+
+      <!-- Message input -->
+      <div class="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 p-3"
+           x-data={`mentionPicker(${JSON.stringify([])})`}>
+        <form hx-post={`/api/rooms/${slug}/messages`}
+              hx-swap="none"
+              hx-on::after-request="if(event.detail.successful) this.reset()"
+              class="flex gap-2">
+          <div class="relative flex-1">
+            <input id="message-input"
+                   name="content"
+                   @input="handleInput($event)"
+                   @keydown="handleKey($event)"
+                   autocomplete="off"
+                   maxlength="2000"
+                   class="w-full rounded-lg border border-gray-300 dark:border-gray-600
+                          bg-white dark:bg-gray-700 text-gray-900 dark:text-white
+                          px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                   placeholder={`Message #${room.name}`} />
+            <!-- @mention dropdown -->
+            <ul x-show="showMentions"
+                class="absolute bottom-full left-0 mb-1 w-48 bg-white dark:bg-gray-800
+                       border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20">
+              <template x-for="user in filtered" :key="user">
+                <li @click="insertMention(user)"
+                    class="px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer text-sm
+                           text-gray-700 dark:text-gray-300"
+                    x-text="'@' + user"></li>
+              </template>
+            </ul>
+          </div>
+          <button type="submit"
+                  class="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-4 py-2 text-sm font-semibold transition">
+            Send
+          </button>
+        </form>
+
+        <!-- Typing trigger (fires on keyup in message input with 500ms debounce) -->
+        <div hx-post={`/api/rooms/${slug}/typing`}
+             hx-trigger="keyup[key!='Enter'] from:#message-input delay:500ms"
+             hx-swap="none">
+        </div>
+      </div>
+    </div>
+
+    <!-- Presence panel -->
+    <aside class="w-44 flex-shrink-0 border-l border-gray-200 dark:border-gray-700
+                  bg-gray-50 dark:bg-gray-800 overflow-y-auto hidden lg:flex flex-col">
+      <div class="px-3 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+        Online
+      </div>
+      <div id="presence-panel"
+           sse-swap="presence"
+           hx-swap="innerHTML">
+        <div set:html={initialPresenceHtml} />
+      </div>
+    </aside>
+  </div>
+
+  <script is:inline>
+    function darkMode() {
+      return {
+        isDark: localStorage.getItem('theme') === 'dark',
+        toggle() {
+          this.isDark = !this.isDark;
+          localStorage.setItem('theme', this.isDark ? 'dark' : 'light');
+        },
+      };
+    }
+
+    function mentionPicker(initialUsers) {
+      return {
+        users: initialUsers,
+        query: '',
+        showMentions: false,
+        get filtered() {
+          return this.users.filter(u =>
+            u.toLowerCase().startsWith(this.query.toLowerCase())
+          );
+        },
+        handleInput(e) {
+          const input = e.target;
+          const val = input.value;
+          const atPos = val.lastIndexOf('@');
+          if (atPos !== -1 && (atPos === 0 || val[atPos - 1] === ' ')) {
+            this.query = val.slice(atPos + 1);
+            this.showMentions = this.filtered.length > 0;
+          } else {
+            this.showMentions = false;
+          }
+        },
+        handleKey(e) {
+          if (e.key === 'Escape') this.showMentions = false;
+        },
+        insertMention(user) {
+          const input = document.getElementById('message-input');
+          const val = input.value;
+          const atPos = val.lastIndexOf('@');
+          input.value = val.slice(0, atPos) + '@' + user + ' ';
+          this.showMentions = false;
+          input.focus();
+        },
+      };
+    }
+
+    // Update mention picker users when presence changes
+    document.addEventListener('htmx:sseMessage', (e) => {
+      if (e.detail?.type === 'presence') {
+        const panel = document.getElementById('presence-panel');
+        if (panel) {
+          const nicks = Array.from(panel.querySelectorAll('span.text-sm')).map(
+            el => el.textContent?.trim() ?? ''
+          ).filter(Boolean);
+          const form = document.querySelector('[x-data^="mentionPicker"]');
+          if (form && form._x_dataStack) {
+            form._x_dataStack[0].users = nicks;
+          }
+        }
+      }
+    });
+  </script>
+</body>
+</html>
