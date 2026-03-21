@@ -15,7 +15,7 @@ export const POST: APIRoute = async ({ request }) => {
   await db.insert(rooms).values({ name, slug }).onConflictDoNothing();
 
   return new Response(null, {
-    status: 204,
-    headers: { 'HX-Redirect': `/rooms/${slug}` },
+    status: 302,
+    headers: { 'Location': `/rooms/${slug}` },
   });
 };

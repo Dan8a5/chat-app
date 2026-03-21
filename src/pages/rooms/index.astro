@@ -111,10 +111,7 @@ const allRooms = await db
       <p class="text-[0.6rem] tracking-[0.2em] text-gray-400 uppercase mb-1">Channel</p>
       <h2 class="text-xl font-black tracking-tight uppercase mb-6">New Room</h2>
 
-      <form id="create-room-form"
-            hx-post="/api/rooms"
-            hx-swap="none"
-            hx-on::after-request="if(event.detail.xhr?.getResponseHeader('HX-Redirect')) { window.location.href = event.detail.xhr.getResponseHeader('HX-Redirect'); }">
+      <form id="create-room-form" method="POST" action="/api/rooms">
         <label class="block text-[0.65rem] tracking-[0.15em] uppercase text-gray-400 mb-2">
           Room Name
         </label>
