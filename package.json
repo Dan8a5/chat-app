@@ -12,7 +12,9 @@
     "preview": "astro preview",
     "astro": "astro",
     "seed": "npx tsx scripts/seed.ts",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
     "@astrojs/node": "^10.0.3",
