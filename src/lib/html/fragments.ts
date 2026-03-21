@@ -4,36 +4,61 @@ export function esc(s: string) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+const AVATAR_COLORS = [
+  '#3b82f6', '#22c55e', '#f59e0b', '#ef4444',
+  '#8b5cf6', '#ec4899', '#06b6d4', '#f97316',
+];
+
+function avatarBg(nick: string): string {
+  let h = 0;
+  for (let i = 0; i < nick.length; i++) h = (h * 31 + nick.charCodeAt(i)) & 0xffff;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+
+function highlightMentions(escaped: string): string {
+  return escaped.replace(/@([a-zA-Z0-9_]+)/g, '<span class="mention">@$1</span>');
+}
+
 export function messageHtml(msg: Message): string {
   if (msg.type === 'system') {
-    return `<div class="system-msg text-center text-xs text-gray-400 py-1">${esc(msg.content)}</div>`;
+    return `<div class="system-msg"><span>${esc(msg.content)}</span></div>`;
   }
   const time = new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  return `<div class="message group flex gap-2 px-3 py-1 hover:bg-gray-50 dark:hover:bg-gray-800" id="msg-${msg.id}">
-    <div class="flex-1 min-w-0">
-      <span class="font-semibold text-sm text-indigo-600 dark:text-indigo-400">${esc(msg.nickname)}</span>
-      <span class="text-xs text-gray-400 ml-1">${time}</span>
-      <p class="text-sm text-gray-800 dark:text-gray-200 break-words">${esc(msg.content)}</p>
+  const initial = msg.nickname.charAt(0).toUpperCase();
+  const bg = avatarBg(msg.nickname);
+  const content = highlightMentions(esc(msg.content));
+  return `<div class="chat-msg" data-nick="${esc(msg.nickname)}" id="msg-${msg.id}">
+    <span class="chat-avatar" style="background:${bg}">${initial}</span>
+    <div class="chat-body">
+      <div class="chat-meta">
+        <span class="chat-nick">${esc(msg.nickname).toUpperCase()}</span>
+        <span class="chat-time">${time}</span>
+      </div>
+      <p class="chat-content">${content}</p>
     </div>
   </div>`;
 }
 
 export function presenceHtml(nicks: string[]): string {
-  if (nicks.length === 0) return '<p class="text-xs text-gray-400 px-2">No one here</p>';
-  return nicks.map(n =>
-    `<div class="flex items-center gap-2 px-2 py-1">
-       <span class="w-2 h-2 rounded-full bg-green-400"></span>
-       <span class="text-sm text-gray-700 dark:text-gray-300">${esc(n)}</span>
-     </div>`
-  ).join('');
+  if (nicks.length === 0) {
+    return `<div class="pres-empty">No one here</div>`;
+  }
+  return nicks.map(n => {
+    const initial = n.charAt(0).toUpperCase();
+    const bg = avatarBg(n);
+    return `<div class="pres-item" data-nick="${esc(n)}">
+      <span class="pres-avatar" style="background:${bg}">${initial}</span>
+      <span class="pres-nick">${esc(n)}</span>
+    </div>`;
+  }).join('');
 }
 
 export function typingHtml(users: string[]): string {
   if (users.length === 0) return '';
   const who = users.length === 1
-    ? `${esc(users[0])} is typing`
-    : `${users.slice(0, -1).map(esc).join(', ')} and ${esc(users.at(-1)!)} are typing`;
-  return `<span class="text-xs text-gray-400 italic">${who}…</span>`;
+    ? `${esc(users[0])} IS TYPING`
+    : `${users.slice(0, -1).map(esc).join(', ')} AND ${esc(users.at(-1)!)} ARE TYPING`;
+  return `<span class="typing-text">${who}...</span>`;
 }
 
 export function loadMoreSentinelHtml(slug: string, beforeId: string): string {

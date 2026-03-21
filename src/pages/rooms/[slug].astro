@@ -29,179 +29,333 @@ const initialPresenceHtml = presenceHtml([]);
 
 // All rooms for sidebar
 const allRooms = await db.select().from(rooms).orderBy(rooms.createdAt);
+
+const nickInitial = nick.charAt(0).toUpperCase();
+
+const AVATAR_COLORS = ['#3b82f6','#22c55e','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#f97316'];
+function getAvatarBg(n: string): string {
+  let h = 0;
+  for (let i = 0; i < n.length; i++) h = (h * 31 + n.charCodeAt(i)) & 0xffff;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+const nickAvatarBg = getAvatarBg(nick);
 ---
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>#{room.name} — ChatApp</title>
+  <title>{room.name.toUpperCase()} — Live Chat</title>
   <script src="/htmx.min.js" is:inline></script>
   <script src="/sse.js" is:inline></script>
   <script src="/alpine.min.js" defer is:inline></script>
 </head>
-<body class="h-screen flex flex-col bg-white dark:bg-gray-900 overflow-hidden"
-      x-data="darkMode()" :class="{ dark: isDark }">
+<body class="h-screen flex bg-white dark:bg-[#0f0f0f] text-black dark:text-white overflow-hidden"
+      x-data="chatApp()"
+      :class="{ dark: isDark }">
 
-  <!-- Header -->
-  <header class="flex-shrink-0 flex items-center justify-between px-4 py-3
-                 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-10">
-    <div class="flex items-center gap-3">
-      <!-- Mobile sidebar toggle -->
-      <button class="sm:hidden text-gray-500 hover:text-gray-700 dark:text-gray-400"
-              @click="sidebarOpen = !sidebarOpen" x-data="{ sidebarOpen: false }">
-        ☰
-      </button>
-      <a href="/rooms" class="flex items-center gap-2">
-        <span class="text-xl">💬</span>
-        <span class="font-bold text-gray-900 dark:text-white hidden sm:inline">ChatApp</span>
-      </a>
-      <span class="text-gray-400">/</span>
-      <span class="font-semibold text-indigo-600 dark:text-indigo-400">#{room.name}</span>
-    </div>
-    <div class="flex items-center gap-3">
-      <span class="text-sm text-gray-500 dark:text-gray-400 hidden sm:inline">{nick}</span>
-      <a href="/api/signout" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline hidden sm:inline">Sign out</a>
-      <button @click="toggle()" title="Toggle dark mode"
-              class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-lg">
-        <span x-text="isDark ? '☀️' : '🌙'"></span>
+  <!-- Mobile sidebar overlay -->
+  <div x-show="sidebarOpen"
+       @click="sidebarOpen = false"
+       class="fixed inset-0 bg-black/40 z-10 sm:hidden"
+       x-cloak></div>
+
+  <!-- ── Sidebar ─────────────────────────────────────── -->
+  <aside class="w-44 shrink-0 flex-col border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-black overflow-hidden
+                fixed sm:relative inset-y-0 left-0 z-20 sm:z-auto"
+         :class="sidebarOpen ? 'flex' : 'hidden sm:flex'">
+    <!-- Sidebar header -->
+    <div class="flex items-center justify-between px-3 py-3 border-b border-gray-200 dark:border-gray-800">
+      <span class="text-[0.6rem] font-black tracking-[0.2em] uppercase text-gray-500 dark:text-gray-400">Rooms</span>
+      <button @click="newRoomOpen = true"
+              class="text-[0.6rem] tracking-widest uppercase text-gray-400 hover:text-black dark:hover:text-white transition-colors font-bold">
+        + New
       </button>
     </div>
-  </header>
 
-  <!-- Main layout -->
-  <div class="flex flex-1 overflow-hidden">
-    <!-- Sidebar: room list -->
-    <aside class="w-56 flex-shrink-0 border-r border-gray-200 dark:border-gray-700
-                  bg-gray-50 dark:bg-gray-800 flex flex-col overflow-y-auto hidden sm:flex">
-      <div class="px-3 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-        Rooms
-      </div>
+    <!-- Room list -->
+    <nav class="flex-1 overflow-y-auto py-2">
       {allRooms.map(r => (
         <a href={`/rooms/${r.slug}`}
-           class={`flex items-center gap-2 px-3 py-2 text-sm rounded mx-1 mb-0.5 transition
-                   ${r.slug === slug
-                     ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-semibold'
-                     : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
-          <span class="text-gray-400">#</span>
-          <span>{r.name}</span>
+           @click="sidebarOpen = false"
+           class={`flex items-center gap-2 px-3 py-1.5 text-[0.7rem] tracking-wider uppercase transition-colors ${
+             r.slug === slug
+               ? 'bg-black dark:bg-white text-white dark:text-black font-bold'
+               : 'text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-900'
+           }`}>
+          <span class={`w-1.5 h-1.5 rounded-full shrink-0 ${r.slug === slug ? 'bg-accent' : 'bg-gray-300 dark:bg-gray-700'}`}></span>
+          {r.name}
         </a>
       ))}
-      <div class="mt-auto p-3">
-        <a href="/rooms"
-           class="flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
-          + New Room
-        </a>
+    </nav>
+  </aside>
+
+  <!-- ── Main area (SSE root) ───────────────────────── -->
+  <div class="flex flex-1 flex-col overflow-hidden dark:bg-[#0f0f0f]"
+       id="sse-root"
+       hx-ext="sse"
+       sse-connect={`/api/rooms/${slug}/sse`}>
+
+    <!-- Header -->
+    <header class="shrink-0 flex items-center justify-between px-3 sm:px-5 py-2.5
+                   border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-black">
+      <div class="flex items-center gap-3">
+        <!-- Mobile hamburger -->
+        <button @click="sidebarOpen = !sidebarOpen"
+                class="sm:hidden text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors text-base leading-none font-bold">
+          ☰
+        </button>
+        <h1 class="text-lg font-black tracking-tight uppercase leading-none">{room.name}</h1>
       </div>
-    </aside>
+      <div class="flex items-center gap-4">
+        <!-- Dark mode toggle -->
+        <button @click="toggleDark()"
+                class="text-[0.6rem] tracking-[0.15em] uppercase text-gray-400 hover:text-black dark:hover:text-white transition-colors font-bold">
+          <span x-text="isDark ? 'Light' : 'Dark'"></span>
+        </button>
 
-    <!-- Chat area (SSE root) -->
-    <div class="flex flex-1 flex-col overflow-hidden"
-         id="sse-root"
-         hx-ext="sse"
-         sse-connect={`/api/rooms/${slug}/sse`}>
+        <!-- Sound toggle -->
+        <button @click="soundOn = !soundOn; localStorage.setItem('sound', soundOn ? 'on' : 'off')"
+                class="text-[0.6rem] tracking-[0.15em] uppercase font-bold transition-colors"
+                :class="soundOn ? 'text-accent' : 'text-gray-400 hover:text-black dark:hover:text-white'">
+          <span x-text="soundOn ? 'Sound On' : 'Sound Off'"></span>
+        </button>
 
-      <!-- Messages -->
-      <div id="messages-list"
-           sse-swap="message"
-           hx-swap="beforeend scroll:#messages-list:bottom"
-           class="flex-1 overflow-y-auto py-2 flex flex-col">
-        <!-- Load more sentinel (if older messages exist) -->
-        <div set:html={sentinelHtml} />
-        <!-- Initial messages -->
-        <div set:html={initialMessagesHtml} />
-      </div>
-
-      <!-- Typing indicator -->
-      <div class="px-4 py-1 min-h-[24px]">
-        <div id="typing-indicator"
-             sse-swap="typing"
-             hx-swap="innerHTML">
-        </div>
-      </div>
-
-      <!-- Message input -->
-      <div class="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 p-3"
-           x-data={`mentionPicker(${JSON.stringify([])})`}>
-        <form hx-post={`/api/rooms/${slug}/messages`}
-              hx-swap="none"
-              hx-on::after-request="if(event.detail.successful) this.reset()"
-              class="flex gap-2">
-          <div class="relative flex-1">
-            <input id="message-input"
-                   name="content"
-                   @input="handleInput($event)"
-                   @keydown="handleKey($event)"
-                   autocomplete="off"
-                   maxlength="2000"
-                   class="w-full rounded-lg border border-gray-300 dark:border-gray-600
-                          bg-white dark:bg-gray-700 text-gray-900 dark:text-white
-                          px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                   placeholder={`Message #${room.name}`} />
-            <!-- @mention dropdown -->
-            <ul x-show="showMentions"
-                class="absolute bottom-full left-0 mb-1 w-48 bg-white dark:bg-gray-800
-                       border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20">
-              <template x-for="user in filtered" :key="user">
-                <li @click="insertMention(user)"
-                    class="px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer text-sm
-                           text-gray-700 dark:text-gray-300"
-                    x-text="'@' + user"></li>
-              </template>
-            </ul>
-          </div>
-          <button type="submit"
-                  class="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-4 py-2 text-sm font-semibold transition">
-            Send
+        <!-- Online presence dropdown -->
+        <div class="relative" x-data="{ open: false }">
+          <button @click="open = !open"
+                  class="flex items-center gap-1.5 text-[0.6rem] tracking-[0.15em] uppercase font-bold text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors">
+            <span class="w-1.5 h-1.5 rounded-full bg-accent"></span>
+            <span id="presence-count">0</span>
+            <span>Online</span>
           </button>
-        </form>
-
-        <!-- Typing trigger (fires on keyup in message input with 500ms debounce) -->
-        <div hx-post={`/api/rooms/${slug}/typing`}
-             hx-trigger="keyup[key!='Enter'] from:#message-input delay:500ms"
-             hx-swap="none">
+          <div x-show="open" @click.away="open = false" x-cloak
+               class="absolute right-0 top-full mt-2 w-44 bg-white dark:bg-black border border-gray-200 dark:border-gray-800 z-30 shadow-lg">
+            <div class="px-3 py-2 border-b border-gray-100 dark:border-gray-800">
+              <span class="text-[0.6rem] tracking-[0.15em] uppercase text-gray-400 font-bold">
+                <span id="presence-count-modal">0</span> Online
+              </span>
+            </div>
+            <div id="presence-panel"
+                 sse-swap="presence"
+                 hx-swap="innerHTML">
+              <div set:html={initialPresenceHtml} />
+            </div>
+          </div>
         </div>
+      </div>
+    </header>
+
+    <!-- Messages -->
+    <div id="messages-list"
+         sse-swap="message"
+         hx-swap="beforeend scroll:#messages-list:bottom"
+         class="flex-1 overflow-y-auto py-2 flex flex-col">
+      <div set:html={sentinelHtml} />
+      <div set:html={initialMessagesHtml} />
+    </div>
+
+    <!-- Typing indicator -->
+    <div class="px-5 py-1 min-h-5.5">
+      <div id="typing-indicator"
+           sse-swap="typing"
+           hx-swap="innerHTML">
       </div>
     </div>
 
-    <!-- Presence panel -->
-    <aside class="w-44 flex-shrink-0 border-l border-gray-200 dark:border-gray-700
-                  bg-gray-50 dark:bg-gray-800 overflow-y-auto hidden lg:flex flex-col">
-      <div class="px-3 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-        Online
+    <!-- Bottom bar -->
+    <div class="shrink-0 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-black">
+      <div class="flex items-center gap-3 px-3 py-2">
+        <!-- User info -->
+        <div class="flex items-center gap-2 shrink-0">
+          <span id="user-avatar"
+                class="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                style={`background:${nickAvatarBg}`}>
+            {nickInitial}
+          </span>
+          <span id="current-nick" class="text-[0.65rem] font-bold tracking-wider uppercase">{nick}</span>
+          <button @click="renameOpen = true"
+                  class="text-[0.55rem] tracking-[0.15em] uppercase text-gray-400 hover:text-black dark:hover:text-white transition-colors font-bold border-b border-transparent hover:border-current">
+            Rename
+          </button>
+          <span class="text-gray-200 dark:text-gray-800">|</span>
+          <a href="/api/signout"
+             class="text-[0.55rem] tracking-[0.15em] uppercase text-gray-400 hover:text-black dark:hover:text-white transition-colors font-bold">
+            Exit
+          </a>
+        </div>
+
+        <!-- Message input -->
+        <div class="flex-1 flex gap-2" x-data>
+          <!-- Typing trigger -->
+          <div hx-post={`/api/rooms/${slug}/typing`}
+               hx-trigger="keyup[key!='Enter'] from:#message-input delay:500ms"
+               hx-swap="none">
+          </div>
+
+          <form hx-post={`/api/rooms/${slug}/messages`}
+                hx-swap="none"
+                hx-on::after-request="if(event.detail.successful) this.reset()"
+                class="flex-1 flex gap-2">
+            <div class="relative flex-1">
+              <input id="message-input"
+                     name="content"
+                     @input="handleInput($event)"
+                     @keydown="handleKey($event)"
+                     autocomplete="off"
+                     maxlength="2000"
+                     placeholder={`Type your message...`}
+                     class="w-full bg-transparent border-0 border-b border-gray-300 dark:border-gray-700
+                            text-xs text-black dark:text-white px-0 py-1.5 focus:outline-none focus:border-black dark:focus:border-white
+                            placeholder-gray-300 dark:placeholder-gray-600 transition-colors" />
+              <!-- @mention dropdown -->
+              <ul x-show="showMentions" x-cloak
+                  class="absolute bottom-full left-0 mb-2 w-44 bg-white dark:bg-black border border-gray-200 dark:border-gray-800 shadow-lg z-20">
+                <template x-for="user in filtered" :key="user">
+                  <li @click="insertMention(user)"
+                      class="px-3 py-1.5 text-[0.7rem] tracking-wider uppercase cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-700 dark:text-gray-300"
+                      x-text="'@' + user"></li>
+                </template>
+              </ul>
+            </div>
+            <button type="submit"
+                    class="text-[0.6rem] tracking-[0.2em] uppercase font-black bg-black dark:bg-white text-white dark:text-black px-4 py-1.5 hover:bg-accent hover:text-black transition-colors">
+              Send
+            </button>
+          </form>
+        </div>
       </div>
-      <div id="presence-panel"
-           sse-swap="presence"
-           hx-swap="innerHTML">
-        <div set:html={initialPresenceHtml} />
+    </div>
+  </div>
+
+  <!-- ── @mention toast ────────────────────────────── -->
+  <div x-show="mentionToast" x-cloak
+       @click="mentionToast = false"
+       class="fixed top-4 right-4 bg-black dark:bg-white text-white dark:text-black text-[0.65rem] tracking-[0.12em] uppercase font-bold px-4 py-3 z-50 shadow-lg cursor-pointer flex items-center gap-2">
+    <span class="text-accent">@</span>
+    <span x-text="mentionUser + ' MENTIONED YOU'"></span>
+  </div>
+
+  <!-- ── New Room Modal ─────────────────────────────── -->
+  <div x-show="newRoomOpen" x-cloak
+       @keydown.escape.window="newRoomOpen = false"
+       class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-[#111] border border-gray-200 dark:border-gray-800 p-8 w-full max-w-sm mx-4"
+         @click.stop>
+      <p class="text-[0.6rem] tracking-[0.2em] text-gray-400 uppercase mb-1">Channel</p>
+      <h2 class="text-xl font-black tracking-tight uppercase mb-6">New Room</h2>
+      <form id="new-room-form"
+            hx-post="/api/rooms"
+            hx-swap="none"
+            hx-on::after-request="if(event.detail.xhr?.getResponseHeader('HX-Redirect')) { window.location.href = event.detail.xhr.getResponseHeader('HX-Redirect'); }">
+        <label class="block text-[0.65rem] tracking-[0.15em] uppercase text-gray-400 mb-2">Room Name</label>
+        <input type="text" name="name"
+               placeholder="e.g. General, Random..."
+               minlength="2" maxlength="50"
+               class="w-full bg-transparent border-0 border-b border-gray-300 dark:border-gray-700
+                      text-sm px-0 py-2 focus:outline-none focus:border-black dark:focus:border-white
+                      placeholder-gray-400 transition-colors"
+               required />
+      </form>
+      <div class="flex gap-3 mt-6">
+        <button type="button" @click="newRoomOpen = false"
+                class="flex-1 text-[0.65rem] tracking-[0.15em] uppercase font-bold border border-gray-300 dark:border-gray-700 py-2.5 hover:border-black dark:hover:border-white transition-colors">
+          Cancel
+        </button>
+        <button type="submit" form="new-room-form"
+                class="flex-1 text-[0.65rem] tracking-[0.15em] uppercase font-bold bg-black dark:bg-white text-white dark:text-black py-2.5 hover:bg-accent hover:text-black transition-colors">
+          Create
+        </button>
       </div>
-    </aside>
+    </div>
+  </div>
+
+  <!-- ── Rename Modal ───────────────────────────────── -->
+  <div x-show="renameOpen" x-cloak
+       @keydown.escape.window="renameOpen = false"
+       class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-[#111] border border-gray-200 dark:border-gray-800 p-8 w-full max-w-sm mx-4"
+         @click.stop>
+      <p class="text-[0.6rem] tracking-[0.2em] text-gray-400 uppercase mb-1">Profile</p>
+      <h2 class="text-xl font-black tracking-tight uppercase mb-6">Change Name</h2>
+      <form id="rename-form"
+            hx-post="/api/nickname/update"
+            hx-swap="none"
+            hx-on::after-request="handleRename(event)">
+        <label class="block text-[0.65rem] tracking-[0.15em] uppercase text-gray-400 mb-2">New Nickname</label>
+        <input type="text" name="nickname"
+               x-model="renameVal"
+               placeholder="Enter new name..."
+               minlength="3" maxlength="20"
+               pattern="[a-zA-Z0-9_]+"
+               class="w-full bg-transparent border-0 border-b border-gray-300 dark:border-gray-700
+                      text-sm px-0 py-2 focus:outline-none focus:border-black dark:focus:border-white
+                      placeholder-gray-400 transition-colors"
+               required />
+      </form>
+      <div class="flex gap-3 mt-6">
+        <button type="button" @click="renameOpen = false; renameVal = ''"
+                class="flex-1 text-[0.65rem] tracking-[0.15em] uppercase font-bold border border-gray-300 dark:border-gray-700 py-2.5 hover:border-black dark:hover:border-white transition-colors">
+          Cancel
+        </button>
+        <button type="submit" form="rename-form"
+                class="flex-1 text-[0.65rem] tracking-[0.15em] uppercase font-bold bg-black dark:bg-white text-white dark:text-black py-2.5 hover:bg-accent hover:text-black transition-colors">
+          Save
+        </button>
+      </div>
+    </div>
   </div>
 
   <script is:inline>
-    function darkMode() {
-      return {
-        isDark: localStorage.getItem('theme') === 'dark',
-        toggle() {
-          this.isDark = !this.isDark;
-          localStorage.setItem('theme', this.isDark ? 'dark' : 'light');
-        },
-      };
+    // ── Avatar color helper (must match fragments.ts) ──
+    const AVATAR_COLORS = ['#3b82f6','#22c55e','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#f97316'];
+    function avatarBg(nick) {
+      let h = 0;
+      for (let i = 0; i < nick.length; i++) h = (h * 31 + nick.charCodeAt(i)) & 0xffff;
+      return AVATAR_COLORS[h % AVATAR_COLORS.length];
     }
 
-    function mentionPicker(initialUsers) {
+    // ── Sound (Web Audio API) ──────────────────────────
+    let audioCtx = null;
+    function playPing() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.connect(g);
+      g.connect(audioCtx.destination);
+      o.frequency.value = 780;
+      g.gain.setValueAtTime(0.25, audioCtx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+      o.start(audioCtx.currentTime);
+      o.stop(audioCtx.currentTime + 0.25);
+    }
+
+    // ── Main Alpine component ──────────────────────────
+    function chatApp() {
       return {
-        users: initialUsers,
+        isDark: localStorage.getItem('theme') === 'dark',
+        soundOn: localStorage.getItem('sound') !== 'off',
+        sidebarOpen: false,
+        newRoomOpen: false,
+        renameOpen: false,
+        renameVal: '',
+        mentionToast: false,
+        mentionUser: '',
+        // mention picker
+        users: [],
         query: '',
         showMentions: false,
         get filtered() {
-          return this.users.filter(u =>
-            u.toLowerCase().startsWith(this.query.toLowerCase())
-          );
+          return this.users.filter(u => u.toLowerCase().startsWith(this.query.toLowerCase()));
         },
+
+        toggleDark() {
+          this.isDark = !this.isDark;
+          localStorage.setItem('theme', this.isDark ? 'dark' : 'light');
+        },
+
         handleInput(e) {
-          const input = e.target;
-          const val = input.value;
+          const val = e.target.value;
           const atPos = val.lastIndexOf('@');
           if (atPos !== -1 && (atPos === 0 || val[atPos - 1] === ' ')) {
             this.query = val.slice(atPos + 1);
@@ -210,9 +364,11 @@ const allRooms = await db.select().from(rooms).orderBy(rooms.createdAt);
             this.showMentions = false;
           }
         },
+
         handleKey(e) {
           if (e.key === 'Escape') this.showMentions = false;
         },
+
         insertMention(user) {
           const input = document.getElementById('message-input');
           const val = input.value;
@@ -221,21 +377,96 @@ const allRooms = await db.select().from(rooms).orderBy(rooms.createdAt);
           this.showMentions = false;
           input.focus();
         },
+
+        handleRename(event) {
+          if (event.detail?.xhr?.status === 204) {
+            const newNick = this.renameVal.trim();
+            document.getElementById('current-nick').textContent = newNick.toUpperCase();
+            const avatar = document.getElementById('user-avatar');
+            avatar.textContent = newNick.charAt(0).toUpperCase();
+            avatar.style.background = avatarBg(newNick);
+            this.renameOpen = false;
+            this.renameVal = '';
+          }
+        },
       };
     }
 
-    // Update mention picker users when presence changes
+    // ── SSE event listeners ────────────────────────────
+    const CURRENT_NICK = document.cookie
+      .split('; ').find(r => r.startsWith('nickname='))?.split('=')[1] ?? '';
+
     document.addEventListener('htmx:sseMessage', (e) => {
-      if (e.detail?.type === 'presence') {
+      const detail = e.detail;
+
+      // Update presence count
+      if (detail?.type === 'presence') {
         const panel = document.getElementById('presence-panel');
         if (panel) {
-          const nicks = Array.from(panel.querySelectorAll('span.text-sm')).map(
-            el => el.textContent?.trim() ?? ''
-          ).filter(Boolean);
-          const form = document.querySelector('[x-data^="mentionPicker"]');
+          const count = panel.querySelectorAll('.pres-item').length;
+          const label = count === 1 ? '1' : String(count);
+          const el1 = document.getElementById('presence-count');
+          const el2 = document.getElementById('presence-count-modal');
+          if (el1) el1.textContent = label;
+          if (el2) el2.textContent = label;
+          // Sync mention picker users
+          const nicks = Array.from(panel.querySelectorAll('.pres-nick')).map(el => el.textContent?.trim() ?? '').filter(Boolean);
+          const form = document.querySelector('[x-data^="chatApp"]') || document.body;
           if (form && form._x_dataStack) {
             form._x_dataStack[0].users = nicks;
           }
+        }
+      }
+
+      // @mention toast + sound on new message
+      if (detail?.type === 'message') {
+        const html = detail.data || '';
+        // Play sound
+        const app = document.body._x_dataStack?.[0];
+        if (app?.soundOn) playPing();
+        // Check for mention
+        if (CURRENT_NICK && html.includes('@' + CURRENT_NICK)) {
+          const nickMatch = html.match(/chat-nick[^>]*>([^<]+)</);
+          const sender = nickMatch ? nickMatch[1] : '?';
+          if (app) {
+            app.mentionUser = sender;
+            app.mentionToast = true;
+            setTimeout(() => { app.mentionToast = false; }, 4000);
+          }
+        }
+        // Message grouping: hide avatar/meta on consecutive same-user messages
+        setTimeout(() => {
+          const msgs = document.querySelectorAll('#messages-list .chat-msg');
+          for (let i = 1; i < msgs.length; i++) {
+            const prev = msgs[i - 1];
+            const curr = msgs[i];
+            if (prev.dataset.nick && prev.dataset.nick === curr.dataset.nick) {
+              const meta = curr.querySelector('.chat-meta');
+              const avatar = curr.querySelector('.chat-avatar');
+              if (meta) meta.style.display = 'none';
+              if (avatar) avatar.style.visibility = 'hidden';
+            } else {
+              const meta = curr.querySelector('.chat-meta');
+              const avatar = curr.querySelector('.chat-avatar');
+              if (meta) meta.style.display = '';
+              if (avatar) avatar.style.visibility = '';
+            }
+          }
+        }, 50);
+      }
+    });
+
+    // Apply message grouping to initial messages on load
+    window.addEventListener('DOMContentLoaded', () => {
+      const msgs = document.querySelectorAll('#messages-list .chat-msg');
+      for (let i = 1; i < msgs.length; i++) {
+        const prev = msgs[i - 1];
+        const curr = msgs[i];
+        if (prev.dataset.nick && prev.dataset.nick === curr.dataset.nick) {
+          const meta = curr.querySelector('.chat-meta');
+          const avatar = curr.querySelector('.chat-avatar');
+          if (meta) meta.style.display = 'none';
+          if (avatar) avatar.style.visibility = 'hidden';
         }
       }
     });
