@@ -3,7 +3,8 @@ import { Pool } from 'pg';
 import * as schema from './schema.js';
 
 const connectionString = process.env.DATABASE_URL ?? import.meta.env.DATABASE_URL;
-// Only use SSL for external proxy connections; internal Railway network doesn't need it
+console.log('[db] connecting to:', connectionString ? connectionString.replace(/:([^:@]+)@/, ':***@') : 'UNDEFINED');
 const ssl = connectionString?.includes('proxy.rlwy.net') ? { rejectUnauthorized: false } : false;
 const pool = new Pool({ connectionString, ssl });
+pool.on('error', (err) => console.error('[db] pool error:', err.message));
 export const db = drizzle(pool, { schema });
