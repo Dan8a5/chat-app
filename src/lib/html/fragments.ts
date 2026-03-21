@@ -62,10 +62,5 @@ export function typingHtml(users: string[]): string {
 }
 
 export function loadMoreSentinelHtml(slug: string, beforeId: string): string {
-  return `<div id="load-more-sentinel"
-    hx-get="/api/rooms/${slug}/messages?before=${beforeId}"
-    hx-trigger="intersect once"
-    hx-target="this"
-    hx-swap="outerHTML"
-    class="h-4"></div>`;
+  return `<div id="load-more-sentinel" data-before="${beforeId}" class="h-4"></div>`;
 }

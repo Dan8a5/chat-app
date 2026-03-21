@@ -46,13 +46,12 @@ const nickAvatarBg = getAvatarBg(nick);
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{room.name.toUpperCase()} — Live Chat</title>
-  <script src="/htmx.min.js" is:inline></script>
-  <script src="/sse.js" is:inline></script>
   <script src="/alpine.min.js" defer is:inline></script>
 </head>
 <body class="h-screen flex bg-white dark:bg-[#0f0f0f] text-black dark:text-white overflow-hidden"
       x-data="chatApp()"
-      :class="{ dark: isDark }">
+      :class="{ dark: isDark }"
+      data-slug={slug}>
 
   <!-- Mobile sidebar overlay -->
   <div x-show="sidebarOpen"
@@ -90,11 +89,9 @@ const nickAvatarBg = getAvatarBg(nick);
     </nav>
   </aside>
 
-  <!-- ── Main area (SSE root) ───────────────────────── -->
+  <!-- ── Main area ─────────────────────────────────── -->
   <div class="flex flex-1 flex-col overflow-hidden dark:bg-[#0f0f0f]"
-       id="sse-root"
-       hx-ext="sse"
-       sse-connect={`/api/rooms/${slug}/sse`}>
+       id="sse-root">
 
     <!-- Header -->
     <header class="shrink-0 flex items-center justify-between px-3 sm:px-5 py-2.5
@@ -136,9 +133,7 @@ const nickAvatarBg = getAvatarBg(nick);
                 <span id="presence-count-modal">0</span> Online
               </span>
             </div>
-            <div id="presence-panel"
-                 sse-swap="presence"
-                 hx-swap="innerHTML">
+            <div id="presence-panel">
               <div set:html={initialPresenceHtml} />
             </div>
           </div>
@@ -148,8 +143,6 @@ const nickAvatarBg = getAvatarBg(nick);
 
     <!-- Messages -->
     <div id="messages-list"
-         sse-swap="message"
-         hx-swap="beforeend scroll:#messages-list:bottom"
          class="flex-1 overflow-y-auto py-2 flex flex-col">
       <div set:html={sentinelHtml} />
       <div set:html={initialMessagesHtml} />
@@ -157,9 +150,7 @@ const nickAvatarBg = getAvatarBg(nick);
 
     <!-- Typing indicator -->
     <div class="px-5 py-1 min-h-5.5">
-      <div id="typing-indicator"
-           sse-swap="typing"
-           hx-swap="innerHTML">
+      <div id="typing-indicator">
       </div>
     </div>
 
@@ -187,16 +178,7 @@ const nickAvatarBg = getAvatarBg(nick);
 
         <!-- Message input -->
         <div class="flex-1 flex gap-2" x-data>
-          <!-- Typing trigger -->
-          <div hx-post={`/api/rooms/${slug}/typing`}
-               hx-trigger="keyup[key!='Enter'] from:#message-input delay:500ms"
-               hx-swap="none">
-          </div>
-
-          <form hx-post={`/api/rooms/${slug}/messages`}
-                hx-swap="none"
-                hx-on::after-request="if(event.detail.successful) this.reset()"
-                class="flex-1 flex gap-2">
+            <form id="message-form" class="flex-1 flex gap-2">
             <div class="relative flex-1">
               <input id="message-input"
                      name="content"
@@ -244,10 +226,7 @@ const nickAvatarBg = getAvatarBg(nick);
          @click.stop>
       <p class="text-[0.6rem] tracking-[0.2em] text-gray-400 uppercase mb-1">Channel</p>
       <h2 class="text-xl font-black tracking-tight uppercase mb-6">New Room</h2>
-      <form id="new-room-form"
-            hx-post="/api/rooms"
-            hx-swap="none"
-            hx-on::after-request="if(event.detail.xhr?.getResponseHeader('HX-Redirect')) { window.location.href = event.detail.xhr.getResponseHeader('HX-Redirect'); }">
+      <form id="new-room-form" method="POST" action="/api/rooms">
         <label class="block text-[0.65rem] tracking-[0.15em] uppercase text-gray-400 mb-2">Room Name</label>
         <input type="text" name="name"
                placeholder="e.g. General, Random..."
@@ -278,10 +257,7 @@ const nickAvatarBg = getAvatarBg(nick);
          @click.stop>
       <p class="text-[0.6rem] tracking-[0.2em] text-gray-400 uppercase mb-1">Profile</p>
       <h2 class="text-xl font-black tracking-tight uppercase mb-6">Change Name</h2>
-      <form id="rename-form"
-            hx-post="/api/nickname/update"
-            hx-swap="none"
-            hx-on::after-request="handleRename(event)">
+      <form id="rename-form">
         <label class="block text-[0.65rem] tracking-[0.15em] uppercase text-gray-400 mb-2">New Nickname</label>
         <input type="text" name="nickname"
                x-model="renameVal"
@@ -307,7 +283,7 @@ const nickAvatarBg = getAvatarBg(nick);
   </div>
 
   <script is:inline>
-    // ── Avatar color helper (must match fragments.ts) ──
+    // ── Helpers ───────────────────────────────────────
     const AVATAR_COLORS = ['#3b82f6','#22c55e','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#f97316'];
     function avatarBg(nick) {
       let h = 0;
@@ -315,22 +291,31 @@ const nickAvatarBg = getAvatarBg(nick);
       return AVATAR_COLORS[h % AVATAR_COLORS.length];
     }
 
-    // ── Sound (Web Audio API) ──────────────────────────
     let audioCtx = null;
     function playPing() {
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const o = audioCtx.createOscillator();
-      const g = audioCtx.createGain();
-      o.connect(g);
-      g.connect(audioCtx.destination);
-      o.frequency.value = 780;
-      g.gain.setValueAtTime(0.25, audioCtx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
-      o.start(audioCtx.currentTime);
-      o.stop(audioCtx.currentTime + 0.25);
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.AudioContext)();
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.frequency.value = 780;
+        g.gain.setValueAtTime(0.25, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+        o.start(); o.stop(audioCtx.currentTime + 0.25);
+      } catch(e) {}
     }
 
-    // ── Main Alpine component ──────────────────────────
+    function applyGrouping() {
+      const msgs = document.querySelectorAll('#messages-list .chat-msg');
+      for (let i = 1; i < msgs.length; i++) {
+        const same = msgs[i-1].dataset.nick === msgs[i].dataset.nick;
+        const meta = msgs[i].querySelector('.chat-meta');
+        const avatar = msgs[i].querySelector('.chat-avatar');
+        if (meta) meta.style.display = same ? 'none' : '';
+        if (avatar) avatar.style.visibility = same ? 'hidden' : '';
+      }
+    }
+
+    // ── Alpine component ──────────────────────────────
     function chatApp() {
       return {
         isDark: localStorage.getItem('theme') === 'dark',
@@ -341,134 +326,148 @@ const nickAvatarBg = getAvatarBg(nick);
         renameVal: '',
         mentionToast: false,
         mentionUser: '',
-        // mention picker
         users: [],
         query: '',
         showMentions: false,
         get filtered() {
           return this.users.filter(u => u.toLowerCase().startsWith(this.query.toLowerCase()));
         },
-
         toggleDark() {
           this.isDark = !this.isDark;
           localStorage.setItem('theme', this.isDark ? 'dark' : 'light');
         },
-
         handleInput(e) {
-          const val = e.target.value;
-          const atPos = val.lastIndexOf('@');
-          if (atPos !== -1 && (atPos === 0 || val[atPos - 1] === ' ')) {
+          const val = e.target.value, atPos = val.lastIndexOf('@');
+          if (atPos !== -1 && (atPos === 0 || val[atPos-1] === ' ')) {
             this.query = val.slice(atPos + 1);
             this.showMentions = this.filtered.length > 0;
-          } else {
-            this.showMentions = false;
-          }
+          } else { this.showMentions = false; }
         },
-
-        handleKey(e) {
-          if (e.key === 'Escape') this.showMentions = false;
-        },
-
+        handleKey(e) { if (e.key === 'Escape') this.showMentions = false; },
         insertMention(user) {
           const input = document.getElementById('message-input');
-          const val = input.value;
-          const atPos = val.lastIndexOf('@');
-          input.value = val.slice(0, atPos) + '@' + user + ' ';
-          this.showMentions = false;
-          input.focus();
-        },
-
-        handleRename(event) {
-          if (event.detail?.xhr?.status === 204) {
-            const newNick = this.renameVal.trim();
-            document.getElementById('current-nick').textContent = newNick.toUpperCase();
-            const avatar = document.getElementById('user-avatar');
-            avatar.textContent = newNick.charAt(0).toUpperCase();
-            avatar.style.background = avatarBg(newNick);
-            this.renameOpen = false;
-            this.renameVal = '';
-          }
+          const atPos = input.value.lastIndexOf('@');
+          input.value = input.value.slice(0, atPos) + '@' + user + ' ';
+          this.showMentions = false; input.focus();
         },
       };
     }
 
-    // ── SSE event listeners ────────────────────────────
-    const CURRENT_NICK = document.cookie
-      .split('; ').find(r => r.startsWith('nickname='))?.split('=')[1] ?? '';
+    // ── Boot after DOM ready ──────────────────────────
+    document.addEventListener('DOMContentLoaded', function() {
+      const slug = document.body.dataset.slug;
+      const NICK = document.cookie.split('; ').find(r => r.startsWith('nickname='))?.split('=')[1] ?? '';
 
-    document.addEventListener('htmx:sseMessage', (e) => {
-      const detail = e.detail;
+      // ── Native SSE ───────────────────────────────────
+      const evtSource = new EventSource('/api/rooms/' + slug + '/sse');
 
-      // Update presence count
-      if (detail?.type === 'presence') {
+      evtSource.addEventListener('message', function(e) {
+        const list = document.getElementById('messages-list');
+        if (!list) return;
+        const tpl = document.createElement('template');
+        tpl.innerHTML = e.data;
+        list.append(...tpl.content.childNodes);
+        list.scrollTop = list.scrollHeight;
+        applyGrouping();
+        // Sound
+        if (localStorage.getItem('sound') !== 'off') playPing();
+        // Mention toast
+        if (NICK && e.data.includes('@' + NICK)) {
+          const m = e.data.match(/chat-nick[^>]*>([^<]+)</);
+          const sender = m ? m[1] : '?';
+          const app = document.body._x_dataStack?.[0];
+          if (app) { app.mentionUser = sender; app.mentionToast = true; setTimeout(() => { app.mentionToast = false; }, 4000); }
+        }
+        // Sync presence users to Alpine mention picker
+      });
+
+      evtSource.addEventListener('presence', function(e) {
         const panel = document.getElementById('presence-panel');
-        if (panel) {
-          const count = panel.querySelectorAll('.pres-item').length;
-          const label = count === 1 ? '1' : String(count);
-          const el1 = document.getElementById('presence-count');
-          const el2 = document.getElementById('presence-count-modal');
-          if (el1) el1.textContent = label;
-          if (el2) el2.textContent = label;
-          // Sync mention picker users
-          const nicks = Array.from(panel.querySelectorAll('.pres-nick')).map(el => el.textContent?.trim() ?? '').filter(Boolean);
-          const form = document.querySelector('[x-data^="chatApp"]') || document.body;
-          if (form && form._x_dataStack) {
-            form._x_dataStack[0].users = nicks;
-          }
-        }
-      }
-
-      // @mention toast + sound on new message
-      if (detail?.type === 'message') {
-        const html = detail.data || '';
-        // Play sound
+        if (!panel) return;
+        panel.innerHTML = e.data;
+        const count = panel.querySelectorAll('.pres-item').length;
+        const c1 = document.getElementById('presence-count');
+        const c2 = document.getElementById('presence-count-modal');
+        if (c1) c1.textContent = count;
+        if (c2) c2.textContent = count;
+        const nicks = Array.from(panel.querySelectorAll('.pres-nick')).map(el => el.textContent.trim()).filter(Boolean);
         const app = document.body._x_dataStack?.[0];
-        if (app?.soundOn) playPing();
-        // Check for mention
-        if (CURRENT_NICK && html.includes('@' + CURRENT_NICK)) {
-          const nickMatch = html.match(/chat-nick[^>]*>([^<]+)</);
-          const sender = nickMatch ? nickMatch[1] : '?';
-          if (app) {
-            app.mentionUser = sender;
-            app.mentionToast = true;
-            setTimeout(() => { app.mentionToast = false; }, 4000);
-          }
-        }
-        // Message grouping: hide avatar/meta on consecutive same-user messages
-        setTimeout(() => {
-          const msgs = document.querySelectorAll('#messages-list .chat-msg');
-          for (let i = 1; i < msgs.length; i++) {
-            const prev = msgs[i - 1];
-            const curr = msgs[i];
-            if (prev.dataset.nick && prev.dataset.nick === curr.dataset.nick) {
-              const meta = curr.querySelector('.chat-meta');
-              const avatar = curr.querySelector('.chat-avatar');
-              if (meta) meta.style.display = 'none';
-              if (avatar) avatar.style.visibility = 'hidden';
-            } else {
-              const meta = curr.querySelector('.chat-meta');
-              const avatar = curr.querySelector('.chat-avatar');
-              if (meta) meta.style.display = '';
-              if (avatar) avatar.style.visibility = '';
-            }
-          }
-        }, 50);
-      }
-    });
+        if (app) app.users = nicks;
+      });
 
-    // Apply message grouping to initial messages on load
-    window.addEventListener('DOMContentLoaded', () => {
-      const msgs = document.querySelectorAll('#messages-list .chat-msg');
-      for (let i = 1; i < msgs.length; i++) {
-        const prev = msgs[i - 1];
-        const curr = msgs[i];
-        if (prev.dataset.nick && prev.dataset.nick === curr.dataset.nick) {
-          const meta = curr.querySelector('.chat-meta');
-          const avatar = curr.querySelector('.chat-avatar');
-          if (meta) meta.style.display = 'none';
-          if (avatar) avatar.style.visibility = 'hidden';
+      evtSource.addEventListener('typing', function(e) {
+        const el = document.getElementById('typing-indicator');
+        if (el) el.innerHTML = e.data;
+      });
+
+      // ── Message form ──────────────────────────────────
+      const form = document.getElementById('message-form');
+      const input = document.getElementById('message-input');
+
+      form && form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const content = input.value.trim();
+        if (!content) return;
+        input.value = '';
+        await fetch('/api/rooms/' + slug + '/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'content=' + encodeURIComponent(content),
+        });
+      });
+
+      // ── Typing indicator ──────────────────────────────
+      let typingTimer;
+      input && input.addEventListener('keyup', function(e) {
+        if (e.key === 'Enter') return;
+        clearTimeout(typingTimer);
+        typingTimer = setTimeout(function() {
+          fetch('/api/rooms/' + slug + '/typing', { method: 'POST' });
+        }, 500);
+      });
+
+      // ── Rename form ───────────────────────────────────
+      const renameForm = document.getElementById('rename-form');
+      renameForm && renameForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const app = document.body._x_dataStack?.[0];
+        const newNick = app ? app.renameVal.trim() : document.querySelector('#rename-form [name=nickname]')?.value.trim();
+        if (!newNick) return;
+        const res = await fetch('/api/nickname/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'nickname=' + encodeURIComponent(newNick),
+        });
+        if (res.ok) {
+          document.getElementById('current-nick').textContent = newNick.toUpperCase();
+          const avatar = document.getElementById('user-avatar');
+          if (avatar) { avatar.textContent = newNick.charAt(0).toUpperCase(); avatar.style.background = avatarBg(newNick); }
+          if (app) { app.renameOpen = false; app.renameVal = ''; }
         }
+      });
+
+      // ── Load more (intersection observer) ────────────
+      function attachLoadMore() {
+        const sentinel = document.getElementById('load-more-sentinel');
+        if (!sentinel) return;
+        const obs = new IntersectionObserver(async function([entry]) {
+          if (!entry.isIntersecting) return;
+          obs.disconnect();
+          const beforeId = sentinel.dataset.before;
+          const res = await fetch('/api/rooms/' + slug + '/messages?before=' + beforeId);
+          const html = await res.text();
+          const tpl = document.createElement('template');
+          tpl.innerHTML = html;
+          sentinel.replaceWith(...tpl.content.childNodes);
+          applyGrouping();
+          attachLoadMore();
+        });
+        obs.observe(sentinel);
       }
+      attachLoadMore();
+
+      // ── Apply grouping to initial messages ────────────
+      applyGrouping();
     });
   </script>
 </body>
