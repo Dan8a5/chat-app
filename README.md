@@ -1,43 +1,65 @@
-# Astro Starter Kit: Minimal
+# chat-app
 
-```sh
-npm create astro@latest -- --template minimal
+A real-time chat application with rooms, presence, typing indicators, and @mention support.
+
+**Live on Railway** — auto-deploys on every merge to `main`.
+
+---
+
+## Stack
+
+- [Astro](https://astro.build) — SSR, `@astrojs/node` standalone adapter
+- [Drizzle ORM](https://orm.drizzle.team) + PostgreSQL
+- [Tailwind v4](https://tailwindcss.com) — class-based dark mode
+- Native `EventSource` (SSE) for real-time messaging
+
+---
+
+## Local development
+
+### 1. Install dependencies
+
+```bash
+npm install
 ```
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+### 2. Set up env vars
 
-## 🚀 Project Structure
+Create a `.env` file in the project root:
 
-Inside of your Astro project, you'll see the following folders and files:
-
-```text
-/
-├── public/
-├── src/
-│   └── pages/
-│       └── index.astro
-└── package.json
+```
+DATABASE_URL=postgresql://user:password@localhost:5432/chatapp
 ```
 
-Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
+### 3. Apply migrations
 
-There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
+```bash
+npm run db:migrate
+```
 
-Any static assets, like images, can be placed in the `public/` directory.
+### 4. Start the dev server
 
-## 🧞 Commands
+```bash
+npm run dev
+# http://localhost:4321
+```
 
-All commands are run from the root of the project, from a terminal:
+---
 
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `npm install`             | Installs dependencies                            |
-| `npm run dev`             | Starts local dev server at `localhost:4321`      |
-| `npm run build`           | Build your production site to `./dist/`          |
-| `npm run preview`         | Preview your build locally, before deploying     |
-| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `npm run astro -- --help` | Get help using the Astro CLI                     |
+## Commands
 
-## 👀 Want to learn more?
+| Command | Action |
+|---------|--------|
+| `npm run dev` | Start dev server at `localhost:4321` |
+| `npm run build` | Production build → `./dist` |
+| `npm run start` | Run the production build |
+| `npm run db:generate` | Generate a new migration from schema changes |
+| `npm run db:migrate` | Apply pending migrations |
+| `npm run db:push` | Push schema directly (local dev only) |
+| `npm run seed` | Seed the database with sample data |
 
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for branch strategy, PR workflow, Railway deployment details, and known gotchas.
