@@ -46,27 +46,26 @@ const nickAvatarBg = getAvatarBg(nick);
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{room.name.toUpperCase()} — Live Chat</title>
-  <script src="/alpine.min.js" defer is:inline></script>
+  <script is:inline>
+    if (localStorage.getItem('theme') === 'dark') document.documentElement.classList.add('dark');
+  </script>
 </head>
 <body class="h-screen flex bg-white dark:bg-[#0f0f0f] text-black dark:text-white overflow-hidden"
-      x-data="chatApp()"
-      :class="{ dark: isDark }"
       data-slug={slug}>
 
   <!-- Mobile sidebar overlay -->
-  <div x-show="sidebarOpen"
-       @click="sidebarOpen = false"
-       class="fixed inset-0 bg-black/40 z-10 sm:hidden"
-       x-cloak></div>
+  <div id="sidebar-overlay" onclick="closeSidebar()"
+       style="display:none"
+       class="fixed inset-0 bg-black/40 z-10 sm:hidden"></div>
 
   <!-- ── Sidebar ─────────────────────────────────────── -->
-  <aside class="w-44 shrink-0 flex-col border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-black overflow-hidden
-                fixed sm:relative inset-y-0 left-0 z-20 sm:z-auto"
-         :class="sidebarOpen ? 'flex' : 'hidden sm:flex'">
+  <aside id="sidebar"
+         class="w-44 shrink-0 flex-col border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-black overflow-hidden
+                fixed sm:relative inset-y-0 left-0 z-20 sm:z-auto hidden sm:flex">
     <!-- Sidebar header -->
     <div class="flex items-center justify-between px-3 py-3 border-b border-gray-200 dark:border-gray-800">
       <span class="text-[0.6rem] font-black tracking-[0.2em] uppercase text-gray-500 dark:text-gray-400">Rooms</span>
-      <button @click="newRoomOpen = true"
+      <button onclick="document.getElementById('new-room-modal').style.display='flex'"
               class="text-[0.6rem] tracking-widest uppercase text-gray-400 hover:text-black dark:hover:text-white transition-colors font-bold">
         + New
       </button>
@@ -76,7 +75,7 @@ const nickAvatarBg = getAvatarBg(nick);
     <nav class="flex-1 overflow-y-auto py-2">
       {allRooms.map(r => (
         <a href={`/rooms/${r.slug}`}
-           @click="sidebarOpen = false"
+           onclick="closeSidebar()"
            class={`flex items-center gap-2 px-3 py-1.5 text-[0.7rem] tracking-wider uppercase transition-colors ${
              r.slug === slug
                ? 'bg-black dark:bg-white text-white dark:text-black font-bold'
@@ -98,7 +97,7 @@ const nickAvatarBg = getAvatarBg(nick);
                    border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-black">
       <div class="flex items-center gap-3">
         <!-- Mobile hamburger -->
-        <button @click="sidebarOpen = !sidebarOpen"
+        <button onclick="openSidebar()"
                 class="sm:hidden text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors text-base leading-none font-bold">
           ☰
         </button>
@@ -106,27 +105,26 @@ const nickAvatarBg = getAvatarBg(nick);
       </div>
       <div class="flex items-center gap-4">
         <!-- Dark mode toggle -->
-        <button @click="toggleDark()"
+        <button id="theme-btn" onclick="toggleTheme()"
                 class="text-[0.6rem] tracking-[0.15em] uppercase text-gray-400 hover:text-black dark:hover:text-white transition-colors font-bold">
-          <span x-text="isDark ? 'Light' : 'Dark'"></span>
+          Dark
         </button>
 
         <!-- Sound toggle -->
-        <button @click="soundOn = !soundOn; localStorage.setItem('sound', soundOn ? 'on' : 'off')"
-                class="text-[0.6rem] tracking-[0.15em] uppercase font-bold transition-colors"
-                :class="soundOn ? 'text-accent' : 'text-gray-400 hover:text-black dark:hover:text-white'">
-          <span x-text="soundOn ? 'Sound On' : 'Sound Off'"></span>
+        <button id="sound-btn" onclick="toggleSound()"
+                class="text-[0.6rem] tracking-[0.15em] uppercase font-bold transition-colors text-gray-400 hover:text-black dark:hover:text-white">
+          Sound Off
         </button>
 
         <!-- Online presence dropdown -->
-        <div class="relative" x-data="{ open: false }">
-          <button @click="open = !open"
+        <div class="relative" id="presence-wrapper">
+          <button onclick="togglePresenceDropdown()"
                   class="flex items-center gap-1.5 text-[0.6rem] tracking-[0.15em] uppercase font-bold text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors">
             <span class="w-1.5 h-1.5 rounded-full bg-accent"></span>
             <span id="presence-count">0</span>
             <span>Online</span>
           </button>
-          <div x-show="open" @click.away="open = false" x-cloak
+          <div id="presence-dropdown" style="display:none"
                class="absolute right-0 top-full mt-2 w-44 bg-white dark:bg-black border border-gray-200 dark:border-gray-800 z-30 shadow-lg">
             <div class="px-3 py-2 border-b border-gray-100 dark:border-gray-800">
               <span class="text-[0.6rem] tracking-[0.15em] uppercase text-gray-400 font-bold">
@@ -165,7 +163,7 @@ const nickAvatarBg = getAvatarBg(nick);
             {nickInitial}
           </span>
           <span id="current-nick" class="text-[0.65rem] font-bold tracking-wider uppercase">{nick}</span>
-          <button @click="renameOpen = true"
+          <button onclick="document.getElementById('rename-modal').style.display='flex'"
                   class="text-[0.55rem] tracking-[0.15em] uppercase text-gray-400 hover:text-black dark:hover:text-white transition-colors font-bold border-b border-transparent hover:border-current">
             Rename
           </button>
@@ -177,27 +175,20 @@ const nickAvatarBg = getAvatarBg(nick);
         </div>
 
         <!-- Message input -->
-        <div class="flex-1 flex gap-2" x-data>
+        <div class="flex-1 flex gap-2">
             <form id="message-form" class="flex-1 flex gap-2">
             <div class="relative flex-1">
               <input id="message-input"
                      name="content"
-                     @input="handleInput($event)"
-                     @keydown="handleKey($event)"
                      autocomplete="off"
                      maxlength="2000"
-                     placeholder={`Type your message...`}
+                     placeholder="Type your message..."
                      class="w-full bg-transparent border-0 border-b border-gray-300 dark:border-gray-700
                             text-xs text-black dark:text-white px-0 py-1.5 focus:outline-none focus:border-black dark:focus:border-white
                             placeholder-gray-300 dark:placeholder-gray-600 transition-colors" />
               <!-- @mention dropdown -->
-              <ul x-show="showMentions" x-cloak
+              <ul id="mention-dropdown" style="display:none"
                   class="absolute bottom-full left-0 mb-2 w-44 bg-white dark:bg-black border border-gray-200 dark:border-gray-800 shadow-lg z-20">
-                <template x-for="user in filtered" :key="user">
-                  <li @click="insertMention(user)"
-                      class="px-3 py-1.5 text-[0.7rem] tracking-wider uppercase cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-700 dark:text-gray-300"
-                      x-text="'@' + user"></li>
-                </template>
               </ul>
             </div>
             <button type="submit"
@@ -211,19 +202,19 @@ const nickAvatarBg = getAvatarBg(nick);
   </div>
 
   <!-- ── @mention toast ────────────────────────────── -->
-  <div x-show="mentionToast" x-cloak
-       @click="mentionToast = false"
+  <div id="mention-toast" style="display:none"
+       onclick="this.style.display='none'"
        class="fixed top-4 right-4 bg-black dark:bg-white text-white dark:text-black text-[0.65rem] tracking-[0.12em] uppercase font-bold px-4 py-3 z-50 shadow-lg cursor-pointer flex items-center gap-2">
     <span class="text-accent">@</span>
-    <span x-text="mentionUser + ' MENTIONED YOU'"></span>
+    <span id="mention-toast-user"></span>
   </div>
 
   <!-- ── New Room Modal ─────────────────────────────── -->
-  <div x-show="newRoomOpen" x-cloak
-       @keydown.escape.window="newRoomOpen = false"
+  <div id="new-room-modal" style="display:none"
+       onclick="if(event.target===this)this.style.display='none'"
        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
     <div class="bg-white dark:bg-[#111] border border-gray-200 dark:border-gray-800 p-8 w-full max-w-sm mx-4"
-         @click.stop>
+         onclick="event.stopPropagation()">
       <p class="text-[0.6rem] tracking-[0.2em] text-gray-400 uppercase mb-1">Channel</p>
       <h2 class="text-xl font-black tracking-tight uppercase mb-6">New Room</h2>
       <form id="new-room-form" method="POST" action="/api/rooms">
@@ -237,7 +228,7 @@ const nickAvatarBg = getAvatarBg(nick);
                required />
       </form>
       <div class="flex gap-3 mt-6">
-        <button type="button" @click="newRoomOpen = false"
+        <button type="button" onclick="document.getElementById('new-room-modal').style.display='none'"
                 class="flex-1 text-[0.65rem] tracking-[0.15em] uppercase font-bold border border-gray-300 dark:border-gray-700 py-2.5 hover:border-black dark:hover:border-white transition-colors">
           Cancel
         </button>
@@ -250,17 +241,16 @@ const nickAvatarBg = getAvatarBg(nick);
   </div>
 
   <!-- ── Rename Modal ───────────────────────────────── -->
-  <div x-show="renameOpen" x-cloak
-       @keydown.escape.window="renameOpen = false"
+  <div id="rename-modal" style="display:none"
+       onclick="if(event.target===this)this.style.display='none'"
        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
     <div class="bg-white dark:bg-[#111] border border-gray-200 dark:border-gray-800 p-8 w-full max-w-sm mx-4"
-         @click.stop>
+         onclick="event.stopPropagation()">
       <p class="text-[0.6rem] tracking-[0.2em] text-gray-400 uppercase mb-1">Profile</p>
       <h2 class="text-xl font-black tracking-tight uppercase mb-6">Change Name</h2>
       <form id="rename-form">
         <label class="block text-[0.65rem] tracking-[0.15em] uppercase text-gray-400 mb-2">New Nickname</label>
-        <input type="text" name="nickname"
-               x-model="renameVal"
+        <input id="rename-input" type="text" name="nickname"
                placeholder="Enter new name..."
                minlength="3" maxlength="20"
                pattern="[a-zA-Z0-9_]+"
@@ -270,7 +260,7 @@ const nickAvatarBg = getAvatarBg(nick);
                required />
       </form>
       <div class="flex gap-3 mt-6">
-        <button type="button" @click="renameOpen = false; renameVal = ''"
+        <button type="button" onclick="document.getElementById('rename-modal').style.display='none';document.getElementById('rename-input').value=''"
                 class="flex-1 text-[0.65rem] tracking-[0.15em] uppercase font-bold border border-gray-300 dark:border-gray-700 py-2.5 hover:border-black dark:hover:border-white transition-colors">
           Cancel
         </button>
@@ -294,7 +284,7 @@ const nickAvatarBg = getAvatarBg(nick);
     let audioCtx = null;
     function playPing() {
       try {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.AudioContext)();
+        if (!audioCtx) audioCtx = new AudioContext();
         const o = audioCtx.createOscillator(), g = audioCtx.createGain();
         o.connect(g); g.connect(audioCtx.destination);
         o.frequency.value = 780;
@@ -309,56 +299,92 @@ const nickAvatarBg = getAvatarBg(nick);
       for (let i = 1; i < msgs.length; i++) {
         const same = msgs[i-1].dataset.nick === msgs[i].dataset.nick;
         const meta = msgs[i].querySelector('.chat-meta');
-        const avatar = msgs[i].querySelector('.chat-avatar');
+        const av = msgs[i].querySelector('.chat-avatar');
         if (meta) meta.style.display = same ? 'none' : '';
-        if (avatar) avatar.style.visibility = same ? 'hidden' : '';
+        if (av) av.style.visibility = same ? 'hidden' : '';
       }
     }
 
-    // ── Alpine component ──────────────────────────────
-    function chatApp() {
-      return {
-        isDark: localStorage.getItem('theme') === 'dark',
-        soundOn: localStorage.getItem('sound') !== 'off',
-        sidebarOpen: false,
-        newRoomOpen: false,
-        renameOpen: false,
-        renameVal: '',
-        mentionToast: false,
-        mentionUser: '',
-        users: [],
-        query: '',
-        showMentions: false,
-        get filtered() {
-          return this.users.filter(u => u.toLowerCase().startsWith(this.query.toLowerCase()));
-        },
-        toggleDark() {
-          this.isDark = !this.isDark;
-          localStorage.setItem('theme', this.isDark ? 'dark' : 'light');
-        },
-        handleInput(e) {
-          const val = e.target.value, atPos = val.lastIndexOf('@');
-          if (atPos !== -1 && (atPos === 0 || val[atPos-1] === ' ')) {
-            this.query = val.slice(atPos + 1);
-            this.showMentions = this.filtered.length > 0;
-          } else { this.showMentions = false; }
-        },
-        handleKey(e) { if (e.key === 'Escape') this.showMentions = false; },
-        insertMention(user) {
-          const input = document.getElementById('message-input');
-          const atPos = input.value.lastIndexOf('@');
-          input.value = input.value.slice(0, atPos) + '@' + user + ' ';
-          this.showMentions = false; input.focus();
-        },
-      };
+    // ── Theme ─────────────────────────────────────────
+    function toggleTheme() {
+      const dark = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('theme', dark ? 'dark' : 'light');
+      const btn = document.getElementById('theme-btn');
+      if (btn) btn.textContent = dark ? 'Light' : 'Dark';
     }
 
-    // ── Boot after DOM ready ──────────────────────────
+    // ── Sound ─────────────────────────────────────────
+    function toggleSound() {
+      const on = localStorage.getItem('sound') !== 'off';
+      localStorage.setItem('sound', on ? 'off' : 'on');
+      const btn = document.getElementById('sound-btn');
+      if (btn) { btn.textContent = on ? 'Sound Off' : 'Sound On'; btn.style.color = on ? '' : '#a3e635'; }
+    }
+
+    // ── Sidebar ───────────────────────────────────────
+    function openSidebar() {
+      const s = document.getElementById('sidebar');
+      const o = document.getElementById('sidebar-overlay');
+      if (s) { s.classList.remove('hidden'); s.classList.add('flex'); }
+      if (o) o.style.display = 'block';
+    }
+    function closeSidebar() {
+      const s = document.getElementById('sidebar');
+      const o = document.getElementById('sidebar-overlay');
+      if (s) { s.classList.add('hidden'); s.classList.remove('flex'); }
+      if (o) o.style.display = 'none';
+    }
+
+    // ── Presence dropdown ─────────────────────────────
+    function togglePresenceDropdown() {
+      const dd = document.getElementById('presence-dropdown');
+      if (dd) dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+    }
+
+    // ── Mention picker ────────────────────────────────
+    var _presenceUsers = [];
+    function insertMention(user) {
+      const input = document.getElementById('message-input');
+      const atPos = input.value.lastIndexOf('@');
+      input.value = input.value.slice(0, atPos) + '@' + user + ' ';
+      document.getElementById('mention-dropdown').style.display = 'none';
+      input.focus();
+    }
+
+    // ── Global event listeners ────────────────────────
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('#presence-wrapper')) {
+        const dd = document.getElementById('presence-dropdown');
+        if (dd) dd.style.display = 'none';
+      }
+      if (!e.target.closest('#message-input') && !e.target.closest('#mention-dropdown')) {
+        const md = document.getElementById('mention-dropdown');
+        if (md) md.style.display = 'none';
+      }
+    });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        document.getElementById('new-room-modal').style.display = 'none';
+        document.getElementById('rename-modal').style.display = 'none';
+        document.getElementById('mention-dropdown').style.display = 'none';
+        closeSidebar();
+      }
+    });
+
+    // ── Boot ──────────────────────────────────────────
     document.addEventListener('DOMContentLoaded', function() {
       const slug = document.body.dataset.slug;
-      const NICK = document.cookie.split('; ').find(r => r.startsWith('nickname='))?.split('=')[1] ?? '';
+      const NICK = decodeURIComponent(document.cookie.split('; ').find(r => r.startsWith('nickname='))?.split('=')[1] ?? '');
 
-      // ── Native SSE ───────────────────────────────────
+      // Init labels
+      const dark = localStorage.getItem('theme') === 'dark';
+      const themeBtn = document.getElementById('theme-btn');
+      if (themeBtn) themeBtn.textContent = dark ? 'Light' : 'Dark';
+      const soundOn = localStorage.getItem('sound') !== 'off';
+      const soundBtn = document.getElementById('sound-btn');
+      if (soundBtn) { soundBtn.textContent = soundOn ? 'Sound On' : 'Sound Off'; if (soundOn) soundBtn.style.color = '#a3e635'; }
+
+      // ── SSE ───────────────────────────────────────────
       const evtSource = new EventSource('/api/rooms/' + slug + '/sse');
 
       evtSource.addEventListener('message', function(e) {
@@ -369,16 +395,19 @@ const nickAvatarBg = getAvatarBg(nick);
         list.append(...tpl.content.childNodes);
         list.scrollTop = list.scrollHeight;
         applyGrouping();
-        // Sound
         if (localStorage.getItem('sound') !== 'off') playPing();
         // Mention toast
         if (NICK && e.data.includes('@' + NICK)) {
           const m = e.data.match(/chat-nick[^>]*>([^<]+)</);
           const sender = m ? m[1] : '?';
-          const app = document.body._x_dataStack?.[0];
-          if (app) { app.mentionUser = sender; app.mentionToast = true; setTimeout(() => { app.mentionToast = false; }, 4000); }
+          const toast = document.getElementById('mention-toast');
+          const toastUser = document.getElementById('mention-toast-user');
+          if (toast && toastUser) {
+            toastUser.textContent = sender + ' MENTIONED YOU';
+            toast.style.display = 'flex';
+            setTimeout(function() { toast.style.display = 'none'; }, 4000);
+          }
         }
-        // Sync presence users to Alpine mention picker
       });
 
       evtSource.addEventListener('presence', function(e) {
@@ -390,9 +419,7 @@ const nickAvatarBg = getAvatarBg(nick);
         const c2 = document.getElementById('presence-count-modal');
         if (c1) c1.textContent = count;
         if (c2) c2.textContent = count;
-        const nicks = Array.from(panel.querySelectorAll('.pres-nick')).map(el => el.textContent.trim()).filter(Boolean);
-        const app = document.body._x_dataStack?.[0];
-        if (app) app.users = nicks;
+        _presenceUsers = Array.from(panel.querySelectorAll('.pres-nick')).map(function(el) { return el.textContent.trim(); }).filter(Boolean);
       });
 
       evtSource.addEventListener('typing', function(e) {
@@ -416,8 +443,27 @@ const nickAvatarBg = getAvatarBg(nick);
         });
       });
 
-      // ── Typing indicator ──────────────────────────────
+      // ── Typing + mention picker ───────────────────────
       let typingTimer;
+      input && input.addEventListener('input', function(e) {
+        const val = e.target.value;
+        const atPos = val.lastIndexOf('@');
+        if (atPos !== -1 && (atPos === 0 || val[atPos-1] === ' ')) {
+          const query = val.slice(atPos + 1).toLowerCase();
+          const matches = _presenceUsers.filter(function(u) { return u.toLowerCase().startsWith(query); });
+          const dd = document.getElementById('mention-dropdown');
+          if (matches.length && dd) {
+            dd.innerHTML = matches.map(function(u) {
+              return '<li onclick="insertMention(\'' + u + '\')" class="px-3 py-1.5 text-[0.7rem] tracking-wider uppercase cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-700 dark:text-gray-300">@' + u + '</li>';
+            }).join('');
+            dd.style.display = 'block';
+          } else if (dd) { dd.style.display = 'none'; }
+        } else {
+          const dd = document.getElementById('mention-dropdown');
+          if (dd) dd.style.display = 'none';
+        }
+      });
+
       input && input.addEventListener('keyup', function(e) {
         if (e.key === 'Enter') return;
         clearTimeout(typingTimer);
@@ -430,8 +476,7 @@ const nickAvatarBg = getAvatarBg(nick);
       const renameForm = document.getElementById('rename-form');
       renameForm && renameForm.addEventListener('submit', async function(e) {
         e.preventDefault();
-        const app = document.body._x_dataStack?.[0];
-        const newNick = app ? app.renameVal.trim() : document.querySelector('#rename-form [name=nickname]')?.value.trim();
+        const newNick = (document.getElementById('rename-input')?.value ?? '').trim();
         if (!newNick) return;
         const res = await fetch('/api/nickname/update', {
           method: 'POST',
@@ -442,19 +487,19 @@ const nickAvatarBg = getAvatarBg(nick);
           document.getElementById('current-nick').textContent = newNick.toUpperCase();
           const avatar = document.getElementById('user-avatar');
           if (avatar) { avatar.textContent = newNick.charAt(0).toUpperCase(); avatar.style.background = avatarBg(newNick); }
-          if (app) { app.renameOpen = false; app.renameVal = ''; }
+          document.getElementById('rename-modal').style.display = 'none';
+          document.getElementById('rename-input').value = '';
         }
       });
 
-      // ── Load more (intersection observer) ────────────
+      // ── Load more ─────────────────────────────────────
       function attachLoadMore() {
         const sentinel = document.getElementById('load-more-sentinel');
         if (!sentinel) return;
         const obs = new IntersectionObserver(async function([entry]) {
           if (!entry.isIntersecting) return;
           obs.disconnect();
-          const beforeId = sentinel.dataset.before;
-          const res = await fetch('/api/rooms/' + slug + '/messages?before=' + beforeId);
+          const res = await fetch('/api/rooms/' + slug + '/messages?before=' + sentinel.dataset.before);
           const html = await res.text();
           const tpl = document.createElement('template');
           tpl.innerHTML = html;
@@ -465,8 +510,6 @@ const nickAvatarBg = getAvatarBg(nick);
         obs.observe(sentinel);
       }
       attachLoadMore();
-
-      // ── Apply grouping to initial messages ────────────
       applyGrouping();
     });
   </script>
