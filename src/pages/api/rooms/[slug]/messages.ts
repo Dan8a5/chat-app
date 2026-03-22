@@ -11,7 +11,10 @@ async function getRoom(slug: string) {
   return room;
 }
 
-export const GET: APIRoute = async ({ params, url }) => {
+export const GET: APIRoute = async ({ params, url, cookies }) => {
+  const nick = cookies.get('nickname')?.value;
+  if (!nick) return new Response('Unauthorized', { status: 401 });
+
   const slug = params.slug!;
   const room = await getRoom(slug);
   if (!room) return new Response('Not found', { status: 404 });
