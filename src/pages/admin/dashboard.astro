@@ -1,0 +1,156 @@
+---
+import '../../styles/global.css';
+import { db } from '../../lib/db/index.js';
+import { rooms, messages, bannedNicknames } from '../../lib/db/schema.js';
+import { eq, count } from 'drizzle-orm';
+
+const allRooms = await db
+  .select({
+    id: rooms.id,
+    name: rooms.name,
+    slug: rooms.slug,
+    createdAt: rooms.createdAt,
+    messageCount: count(messages.id),
+  })
+  .from(rooms)
+  .leftJoin(messages, eq(messages.roomId, rooms.id))
+  .groupBy(rooms.id)
+  .orderBy(rooms.createdAt);
+
+const [{ total: totalMessages }] = await db.select({ total: count() }).from(messages);
+const [{ total: totalBanned }] = await db.select({ total: count() }).from(bannedNicknames);
+const allBanned = await db.select().from(bannedNicknames).orderBy(bannedNicknames.bannedAt);
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard — Live Chat</title>
+  <script is:inline>
+    if (localStorage.getItem('theme') === 'dark') document.documentElement.classList.add('dark');
+  </script>
+</head>
+<body class="min-h-screen bg-white dark:bg-black text-black dark:text-white">
+
+  <!-- Header -->
+  <header class="border-b border-gray-200 dark:border-gray-800 px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <span class="text-[0.6rem] tracking-[0.2em] uppercase text-gray-400">Live Chat</span>
+      <span class="text-gray-200 dark:text-gray-800">/</span>
+      <span class="text-xs font-bold tracking-[0.15em] uppercase">Admin</span>
+    </div>
+    <button
+      onclick="fetch('/api/admin/logout',{method:'POST'}).then(function(){window.location.href='/admin'})"
+      class="text-[0.65rem] tracking-[0.15em] uppercase text-gray-400 hover:text-black dark:hover:text-white transition-colors font-bold">
+      Sign Out
+    </button>
+  </header>
+
+  <main class="max-w-3xl mx-auto px-6 py-10 space-y-12">
+
+    <!-- Stats -->
+    <section>
+      <p class="text-[0.6rem] tracking-[0.2em] text-gray-400 uppercase mb-1">Overview</p>
+      <h2 class="text-2xl font-black tracking-tight uppercase mb-6">Dashboard</h2>
+      <div class="grid grid-cols-3 gap-4">
+        <div class="border border-gray-200 dark:border-gray-800 px-5 py-4">
+          <p class="text-[0.6rem] tracking-[0.15em] uppercase text-gray-400 mb-1">Rooms</p>
+          <p class="text-2xl font-black">{allRooms.length}</p>
+        </div>
+        <div class="border border-gray-200 dark:border-gray-800 px-5 py-4">
+          <p class="text-[0.6rem] tracking-[0.15em] uppercase text-gray-400 mb-1">Messages</p>
+          <p class="text-2xl font-black">{totalMessages}</p>
+        </div>
+        <div class="border border-gray-200 dark:border-gray-800 px-5 py-4">
+          <p class="text-[0.6rem] tracking-[0.15em] uppercase text-gray-400 mb-1">Banned</p>
+          <p class="text-2xl font-black">{totalBanned}</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Rooms -->
+    <section>
+      <p class="text-[0.6rem] tracking-[0.2em] text-gray-400 uppercase mb-1">Manage</p>
+      <h2 class="text-xl font-black tracking-tight uppercase mb-4">Rooms</h2>
+
+      {allRooms.length === 0 ? (
+        <p class="text-[0.7rem] tracking-[0.1em] text-gray-400 uppercase py-6">No rooms yet.</p>
+      ) : (
+        <div class="border border-gray-200 dark:border-gray-800 divide-y divide-gray-200 dark:divide-gray-800">
+          {allRooms.map(room => (
+            <div class="flex items-center justify-between px-4 py-3">
+              <div class="flex-1 min-w-0">
+                <p class="text-xs font-bold tracking-[0.1em] uppercase truncate">{room.name}</p>
+                <p class="text-[0.6rem] tracking-wider text-gray-400 uppercase mt-0.5">
+                  {room.messageCount} messages · {new Date(room.createdAt).toLocaleDateString()}
+                </p>
+              </div>
+              <div class="flex items-center gap-3 ml-4 shrink-0">
+                <a href={`/admin/rooms/${room.slug}`}
+                   class="text-[0.6rem] tracking-[0.15em] uppercase font-bold text-gray-400 hover:text-black dark:hover:text-white transition-colors">
+                  View
+                </a>
+                <button
+                  data-slug={room.slug}
+                  data-name={room.name}
+                  onclick="deleteRoom(this)"
+                  class="text-[0.6rem] tracking-[0.15em] uppercase font-bold text-gray-300 dark:text-gray-700 hover:text-red-500 dark:hover:text-red-400 transition-colors">
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+
+    <!-- Banned Users -->
+    <section>
+      <p class="text-[0.6rem] tracking-[0.2em] text-gray-400 uppercase mb-1">Access</p>
+      <h2 class="text-xl font-black tracking-tight uppercase mb-4">Banned Users</h2>
+
+      {allBanned.length === 0 ? (
+        <p class="text-[0.7rem] tracking-[0.1em] text-gray-400 uppercase py-6">No banned users.</p>
+      ) : (
+        <div class="border border-gray-200 dark:border-gray-800 divide-y divide-gray-200 dark:divide-gray-800">
+          {allBanned.map(ban => (
+            <div class="flex items-center justify-between px-4 py-3">
+              <div>
+                <p class="text-xs font-bold tracking-[0.1em] uppercase">{ban.nickname}</p>
+                <p class="text-[0.6rem] tracking-wider text-gray-400 uppercase mt-0.5">
+                  Banned {new Date(ban.bannedAt).toLocaleString()}
+                  {ban.reason && ` · ${ban.reason}`}
+                </p>
+              </div>
+              <button
+                data-nick={ban.nickname}
+                onclick="unbanUser(this)"
+                class="ml-4 text-[0.6rem] tracking-[0.15em] uppercase font-bold text-gray-300 dark:text-gray-700 hover:text-black dark:hover:text-white transition-colors">
+                Unban
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+
+  </main>
+
+  <script is:inline>
+    async function deleteRoom(btn) {
+      var slug = btn.dataset.slug;
+      var name = btn.dataset.name;
+      if (!confirm('Delete "' + name + '" and all its messages?')) return;
+      await fetch('/api/admin/rooms/' + slug, { method: 'DELETE' });
+      window.location.reload();
+    }
+
+    async function unbanUser(btn) {
+      var nick = btn.dataset.nick;
+      await fetch('/api/admin/users/' + encodeURIComponent(nick) + '/unban', { method: 'DELETE' });
+      window.location.reload();
+    }
+  </script>
+</body>
+</html>

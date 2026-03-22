@@ -431,6 +431,13 @@ const nickAvatarBg = getAvatarBg(nick);
         if (el) el.innerHTML = e.data;
       });
 
+      evtSource.addEventListener('kicked', function(e) {
+        if (e.data.trim() === NICK) {
+          evtSource.close();
+          window.location.href = '/';
+        }
+      });
+
       // ── New room form ─────────────────────────────────
       const newRoomForm = document.getElementById('new-room-form');
       newRoomForm && newRoomForm.addEventListener('submit', async function(e) {

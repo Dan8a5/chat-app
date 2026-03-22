@@ -1,0 +1,179 @@
+---
+import '../../../styles/global.css';
+import { db } from '../../../lib/db/index.js';
+import { rooms, messages, bannedNicknames } from '../../../lib/db/schema.js';
+import { eq, desc, inArray } from 'drizzle-orm';
+
+const { slug } = Astro.params;
+
+const [room] = await db.select().from(rooms).where(eq(rooms.slug, slug!)).limit(1);
+if (!room) return Astro.redirect('/admin/dashboard');
+
+const allMessages = await db
+  .select()
+  .from(messages)
+  .where(eq(messages.roomId, room.id))
+  .orderBy(desc(messages.createdAt))
+  .limit(200);
+
+// Build set of banned nicks for this room's users
+const userNicks = [...new Set(allMessages.filter(m => m.type === 'user').map(m => m.nickname))];
+const bannedRows = userNicks.length > 0
+  ? await db.select({ nickname: bannedNicknames.nickname })
+      .from(bannedNicknames)
+      .where(inArray(bannedNicknames.nickname, userNicks))
+  : [];
+const bannedSet = new Set(bannedRows.map(r => r.nickname));
+
+const ordered = [...allMessages].reverse();
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{room.name} — Admin — Live Chat</title>
+  <script is:inline>
+    if (localStorage.getItem('theme') === 'dark') document.documentElement.classList.add('dark');
+  </script>
+</head>
+<body class="min-h-screen bg-white dark:bg-black text-black dark:text-white">
+
+  <!-- Header -->
+  <header class="border-b border-gray-200 dark:border-gray-800 px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <a href="/admin/dashboard"
+         class="text-[0.6rem] tracking-[0.2em] uppercase text-gray-400 hover:text-black dark:hover:text-white transition-colors">
+        &larr; Dashboard
+      </a>
+      <span class="text-gray-200 dark:text-gray-800">/</span>
+      <span class="text-xs font-bold tracking-[0.15em] uppercase">{room.name}</span>
+    </div>
+    <button
+      onclick="fetch('/api/admin/logout',{method:'POST'}).then(function(){window.location.href='/admin'})"
+      class="text-[0.65rem] tracking-[0.15em] uppercase text-gray-400 hover:text-black dark:hover:text-white transition-colors font-bold">
+      Sign Out
+    </button>
+  </header>
+
+  <main class="max-w-3xl mx-auto px-6 py-10">
+    <p class="text-[0.6rem] tracking-[0.2em] text-gray-400 uppercase mb-1">Room</p>
+    <h1 class="text-2xl font-black tracking-tight uppercase mb-2">{room.name}</h1>
+    <p class="text-[0.65rem] tracking-wider text-gray-400 uppercase mb-8">
+      {allMessages.length} messages shown (latest 200)
+    </p>
+
+    {ordered.length === 0 ? (
+      <p class="text-[0.7rem] tracking-[0.1em] text-gray-400 uppercase py-6">No messages in this room.</p>
+    ) : (
+      <div class="border border-gray-200 dark:border-gray-800 divide-y divide-gray-200 dark:divide-gray-800">
+        {ordered.map(msg => (
+          <div class="flex items-start gap-4 px-4 py-3">
+            <div class="flex-1 min-w-0">
+              {msg.type === 'system' ? (
+                <p class="text-[0.65rem] tracking-wider text-gray-400 uppercase italic">{msg.content}</p>
+              ) : (
+                <>
+                  <div class="flex items-center gap-2 mb-0.5">
+                    <span class="text-[0.65rem] font-bold tracking-[0.1em] uppercase">{msg.nickname}</span>
+                    <span class="text-[0.55rem] tracking-wider text-gray-400 uppercase">
+                      {new Date(msg.createdAt).toLocaleString()}
+                    </span>
+                  </div>
+                  <p class="text-xs text-gray-700 dark:text-gray-300 break-words">{msg.content}</p>
+                </>
+              )}
+            </div>
+            {msg.type === 'user' && (
+              <div class="flex items-center gap-3 shrink-0 pt-0.5">
+                {!bannedSet.has(msg.nickname) && (
+                  <button
+                    data-nick={msg.nickname}
+                    onclick="banUser(this)"
+                    class="text-[0.6rem] tracking-[0.15em] uppercase font-bold text-gray-300 dark:text-gray-700 hover:text-red-500 dark:hover:text-red-400 transition-colors">
+                    Ban
+                  </button>
+                )}
+                {bannedSet.has(msg.nickname) && (
+                  <span class="text-[0.6rem] tracking-[0.15em] uppercase font-bold text-red-400">Banned</span>
+                )}
+                <button
+                  data-id={msg.id}
+                  onclick="deleteMessage(this)"
+                  class="text-[0.6rem] tracking-[0.15em] uppercase font-bold text-gray-300 dark:text-gray-700 hover:text-red-500 dark:hover:text-red-400 transition-colors">
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    )}
+  </main>
+
+  <!-- Ban modal -->
+  <div id="ban-modal" style="display:none"
+       onclick="if(event.target===this)this.style.display='none'"
+       class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-[#111] border border-gray-200 dark:border-gray-800 p-8 w-full max-w-sm mx-4"
+         onclick="event.stopPropagation()">
+      <p class="text-[0.6rem] tracking-[0.2em] text-gray-400 uppercase mb-1">Action</p>
+      <h2 class="text-xl font-black tracking-tight uppercase mb-1">Ban User</h2>
+      <p id="ban-modal-nick" class="text-[0.7rem] tracking-[0.1em] uppercase text-gray-500 mb-6"></p>
+      <label class="block text-[0.65rem] tracking-[0.15em] uppercase text-gray-400 mb-2">
+        Reason (optional)
+      </label>
+      <input id="ban-reason" type="text" placeholder="e.g. spam, abuse..."
+             class="w-full bg-transparent border-0 border-b border-gray-300 dark:border-gray-700
+                    text-sm px-0 py-2 focus:outline-none focus:border-black dark:focus:border-white
+                    placeholder-gray-400 transition-colors mb-6" />
+      <div class="flex gap-3">
+        <button type="button" onclick="document.getElementById('ban-modal').style.display='none'"
+                class="flex-1 text-[0.65rem] tracking-[0.15em] uppercase font-bold border border-gray-300 dark:border-gray-700
+                       py-2.5 hover:border-black dark:hover:border-white transition-colors">
+          Cancel
+        </button>
+        <button type="button" onclick="confirmBan()"
+                class="flex-1 text-[0.65rem] tracking-[0.15em] uppercase font-bold bg-red-500
+                       text-white py-2.5 hover:bg-red-600 transition-colors">
+          Ban
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script is:inline>
+    var _banNick = '';
+
+    function banUser(btn) {
+      _banNick = btn.dataset.nick;
+      document.getElementById('ban-modal-nick').textContent = _banNick;
+      document.getElementById('ban-reason').value = '';
+      document.getElementById('ban-modal').style.display = 'flex';
+    }
+
+    async function confirmBan() {
+      if (!_banNick) return;
+      var reason = document.getElementById('ban-reason').value.trim();
+      var body = reason ? 'reason=' + encodeURIComponent(reason) : '';
+      await fetch('/api/admin/users/' + encodeURIComponent(_banNick) + '/ban', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body,
+      });
+      window.location.reload();
+    }
+
+    async function deleteMessage(btn) {
+      var id = btn.dataset.id;
+      if (!confirm('Delete this message?')) return;
+      await fetch('/api/admin/messages/' + id, { method: 'DELETE' });
+      btn.closest('.flex.items-start').remove();
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') document.getElementById('ban-modal').style.display = 'none';
+    });
+  </script>
+</body>
+</html>
