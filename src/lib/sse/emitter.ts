@@ -26,7 +26,10 @@ export function addPresence(slug: string, nick: string) {
 }
 
 export function removePresence(slug: string, nick: string) {
-  presence.get(slug)?.delete(nick);
+  const set = presence.get(slug);
+  if (!set) return;
+  set.delete(nick);
+  if (set.size === 0) presence.delete(slug);
 }
 
 export function getPresence(slug: string): string[] {
@@ -39,10 +42,27 @@ export function setTyping(slug: string, nick: string, onExpire: () => void) {
   if (map.has(nick)) clearTimeout(map.get(nick)!);
   map.set(nick, setTimeout(() => {
     map.delete(nick);
+    if (map.size === 0) typingTimeouts.delete(slug);
     onExpire();
   }, 3000));
 }
 
 export function getTyping(slug: string): string[] {
   return Array.from(typingTimeouts.get(slug)?.keys() ?? []);
+}
+
+export function cleanupRoom(slug: string) {
+  const emitter = emitters.get(slug);
+  const hasListeners = emitter && (
+    emitter.listenerCount('message') > 0 ||
+    emitter.listenerCount('presence') > 0 ||
+    emitter.listenerCount('typing') > 0
+  );
+  if (hasListeners) return;
+  if ((presence.get(slug)?.size ?? 0) > 0) return;
+  if ((typingTimeouts.get(slug)?.size ?? 0) > 0) return;
+
+  emitters.delete(slug);
+  presence.delete(slug);
+  typingTimeouts.delete(slug);
 }

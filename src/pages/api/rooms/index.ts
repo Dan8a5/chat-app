@@ -15,6 +15,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
 
+  if (!slug) return new Response('Room name must contain at least one letter or number.', { status: 400 });
+
   await db.insert(rooms).values({ name, slug }).onConflictDoNothing();
 
   return new Response(null, {

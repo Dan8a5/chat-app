@@ -143,6 +143,57 @@ Set the chat-app service's `DATABASE_URL` to the **internal** URL (`postgres.rai
 
 ---
 
+## Security
+
+### Auth pattern
+
+Every mutating or sensitive API route checks for the `nickname` cookie before doing anything:
+
+```typescript
+const nick = cookies.get('nickname')?.value;
+if (!nick) return new Response('Unauthorized', { status: 401 });
+```
+
+Routes that require this check:
+- `POST /api/rooms` — create room
+- `DELETE /api/rooms/[slug]` — delete room
+- `GET /api/rooms/[slug]/messages` — load messages (pagination)
+- `POST /api/rooms/[slug]/messages` — send message (also rate-limited)
+- `POST /api/signout` — clear session
+
+The `nickname` cookie is set with `httpOnly: true, secure: true, sameSite: lax`. It cannot be read by client JS. The chat room page injects the nick into `window.__CHAT_NICK__` via a server-side `define:vars` script so the client has access without touching `document.cookie`.
+
+### Rate limiting
+
+Enforced in `src/middleware.ts` before handlers run, using in-memory sliding-window buckets (`src/lib/ratelimit.ts`):
+
+| Action | Limit | Window | Key |
+|--------|-------|--------|-----|
+| Send message | 10 requests | 10 seconds | nickname |
+| Create room | 5 requests | 1 hour | IP (`x-forwarded-for`) |
+
+Returns `429 Too Many Requests` when exceeded. Buckets reset after the window expires. Note: state is in-memory — resets on server restart. Acceptable for a single-instance Railway deploy.
+
+### CSRF protection
+
+Astro's built-in `checkOrigin` is **enabled** (default). It validates the `Origin` header on non-GET requests. All form submissions use `fetch()` instead of native HTML `<form method="POST">` because Railway's reverse proxy rewrites headers in a way that makes native form `Origin` validation fail. `fetch()` same-origin requests are unaffected.
+
+Do not add `security: { checkOrigin: false }` to `astro.config.mjs`.
+
+### Database connection
+
+The production DB uses Railway's **internal private network**:
+
+```
+postgresql://postgres:<password>@postgres.railway.internal:5432/railway
+```
+
+No SSL configuration is needed — internal Railway connections are trusted. The `pg` pool is created with just `{ connectionString: process.env.DATABASE_URL }`.
+
+For GitHub Actions CI and local dev, use `DATABASE_PUBLIC_URL` (the external proxy). See the Railway deployment section for details.
+
+---
+
 ## Gotchas
 
 ### Alpine.js and htmx do not work in Railway production builds
