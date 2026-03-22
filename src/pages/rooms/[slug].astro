@@ -272,6 +272,10 @@ const nickAvatarBg = getAvatarBg(nick);
     </div>
   </div>
 
+  <script is:inline define:vars={{ nick }}>
+    window.__CHAT_NICK__ = nick;
+  </script>
+
   <script is:inline>
     // ── Helpers ───────────────────────────────────────
     const AVATAR_COLORS = ['#3b82f6','#22c55e','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#f97316'];
@@ -374,7 +378,7 @@ const nickAvatarBg = getAvatarBg(nick);
     // ── Boot ──────────────────────────────────────────
     document.addEventListener('DOMContentLoaded', function() {
       const slug = document.body.dataset.slug;
-      const NICK = decodeURIComponent(document.cookie.split('; ').find(r => r.startsWith('nickname='))?.split('=')[1] ?? '');
+      const NICK = window.__CHAT_NICK__ || '';
 
       // Init labels
       const dark = localStorage.getItem('theme') === 'dark';
