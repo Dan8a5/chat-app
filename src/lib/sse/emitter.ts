@@ -51,6 +51,12 @@ export function getTyping(slug: string): string[] {
   return Array.from(typingTimeouts.get(slug)?.keys() ?? []);
 }
 
+export function kickFromAllRooms(nick: string) {
+  for (const [, emitter] of emitters) {
+    emitter.emit('kicked', nick);
+  }
+}
+
 export function cleanupRoom(slug: string) {
   const emitter = emitters.get(slug);
   const hasListeners = emitter && (

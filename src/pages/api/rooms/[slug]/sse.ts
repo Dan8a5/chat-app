@@ -52,15 +52,18 @@ export const GET: APIRoute = async ({ params, cookies, request }) => {
       const onMessage = (html: string) => send('message', html);
       const onPresence = (html: string) => send('presence', html);
       const onTyping = (html: string) => send('typing', html);
+      const onKicked = (kickedNick: string) => send('kicked', kickedNick);
 
       emitter.on('message', onMessage);
       emitter.on('presence', onPresence);
       emitter.on('typing', onTyping);
+      emitter.on('kicked', onKicked);
 
       request.signal.addEventListener('abort', async () => {
         emitter.off('message', onMessage);
         emitter.off('presence', onPresence);
         emitter.off('typing', onTyping);
+        emitter.off('kicked', onKicked);
         removePresence(slug, nick);
 
         try {

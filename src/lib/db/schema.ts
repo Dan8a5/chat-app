@@ -16,5 +16,13 @@ export const messages = pgTable('messages', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+export const bannedNicknames = pgTable('banned_nicknames', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  nickname: text('nickname').notNull().unique(),
+  bannedAt: timestamp('banned_at').defaultNow().notNull(),
+  reason: text('reason'),
+});
+
 export type Room = typeof rooms.$inferSelect;
 export type Message = typeof messages.$inferSelect;
+export type BannedNickname = typeof bannedNicknames.$inferSelect;
