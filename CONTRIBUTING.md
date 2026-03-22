@@ -176,9 +176,11 @@ Returns `429 Too Many Requests` when exceeded. Buckets reset after the window ex
 
 ### CSRF protection
 
-Astro's built-in `checkOrigin` is **enabled** (default). It validates the `Origin` header on non-GET requests. All form submissions use `fetch()` instead of native HTML `<form method="POST">` because Railway's reverse proxy rewrites headers in a way that makes native form `Origin` validation fail. `fetch()` same-origin requests are unaffected.
+Astro's `checkOrigin` is **disabled** (`security: { checkOrigin: false }` in `astro.config.mjs`). Railway's reverse proxy rewrites the internal host, so `request.url` inside Node never matches the `Origin` header the browser sends — Astro's check rejects valid same-origin `fetch()` calls with 403.
 
-Do not add `security: { checkOrigin: false }` to `astro.config.mjs`.
+CSRF protection is instead provided by the `sameSite: lax` cookie setting. Cross-site POST requests won't carry the `nickname` cookie, so all protected endpoints return 401 before doing any work.
+
+All form submissions use `fetch()` instead of native HTML `<form method="POST">` — this is required for the same Railway proxy reason (native form POSTs were also rejected).
 
 ### Database connection
 
