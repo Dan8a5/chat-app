@@ -168,10 +168,10 @@ const nickAvatarBg = getAvatarBg(nick);
             Rename
           </button>
           <span class="text-gray-200 dark:text-gray-800">|</span>
-          <a href="/api/signout"
-             class="text-[0.55rem] tracking-[0.15em] uppercase text-gray-400 hover:text-black dark:hover:text-white transition-colors font-bold">
+          <button onclick="fetch('/api/signout',{method:'POST'}).then(function(){window.location.href='/'})"
+                  class="text-[0.55rem] tracking-[0.15em] uppercase text-gray-400 hover:text-black dark:hover:text-white transition-colors font-bold">
             Exit
-          </a>
+          </button>
         </div>
 
         <!-- Message input -->
@@ -471,9 +471,14 @@ const nickAvatarBg = getAvatarBg(nick);
           const matches = _presenceUsers.filter(function(u) { return u.toLowerCase().startsWith(query); });
           const dd = document.getElementById('mention-dropdown');
           if (matches.length && dd) {
-            dd.innerHTML = matches.map(function(u) {
-              return '<li onclick="insertMention(\'' + u + '\')" class="px-3 py-1.5 text-[0.7rem] tracking-wider uppercase cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-700 dark:text-gray-300">@' + u + '</li>';
-            }).join('');
+            dd.innerHTML = '';
+            matches.forEach(function(u) {
+              var li = document.createElement('li');
+              li.textContent = '@' + u;
+              li.className = 'px-3 py-1.5 text-[0.7rem] tracking-wider uppercase cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-700 dark:text-gray-300';
+              li.addEventListener('click', function() { insertMention(u); });
+              dd.appendChild(li);
+            });
             dd.style.display = 'block';
           } else if (dd) { dd.style.display = 'none'; }
         } else {

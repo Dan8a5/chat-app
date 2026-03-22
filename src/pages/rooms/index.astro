@@ -37,10 +37,10 @@ const allRooms = await db
               class="text-[0.65rem] tracking-[0.15em] uppercase text-gray-400 hover:text-black dark:hover:text-white transition-colors">
         Dark
       </button>
-      <a href="/api/signout"
-         class="text-[0.65rem] tracking-[0.15em] uppercase text-gray-400 hover:text-black dark:hover:text-white transition-colors">
+      <button onclick="fetch('/api/signout',{method:'POST'}).then(function(){window.location.href='/'})"
+              class="text-[0.65rem] tracking-[0.15em] uppercase text-gray-400 hover:text-black dark:hover:text-white transition-colors">
         Sign out
-      </a>
+      </button>
     </div>
   </header>
 
