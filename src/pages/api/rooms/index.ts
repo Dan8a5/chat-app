@@ -2,7 +2,10 @@ import type { APIRoute } from 'astro';
 import { db } from '../../../lib/db/index.js';
 import { rooms } from '../../../lib/db/schema.js';
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, cookies }) => {
+  const nick = cookies.get('nickname')?.value;
+  if (!nick) return new Response('Unauthorized', { status: 401 });
+
   const form = await request.formData();
   const name = (form.get('name') as string | null)?.trim() ?? '';
 
