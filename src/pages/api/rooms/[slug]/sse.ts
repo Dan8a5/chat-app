@@ -6,6 +6,7 @@ import {
   addPresence,
   removePresence,
   getPresence,
+  cleanupRoom,
 } from '../../../../lib/sse/emitter.js';
 import { messageHtml, presenceHtml } from '../../../../lib/html/fragments.js';
 import { eq } from 'drizzle-orm';
@@ -75,6 +76,7 @@ export const GET: APIRoute = async ({ params, cookies, request }) => {
           // DB may be unavailable on shutdown
         }
         try { controller.close(); } catch { /* already closed */ }
+        cleanupRoom(slug);
       });
     },
   });
