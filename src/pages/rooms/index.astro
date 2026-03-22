@@ -107,7 +107,7 @@ const allRooms = await db
       <p class="text-[0.6rem] tracking-[0.2em] text-gray-400 uppercase mb-1">Channel</p>
       <h2 class="text-xl font-black tracking-tight uppercase mb-6">New Room</h2>
 
-      <form id="create-room-form" method="POST" action="/api/rooms">
+      <form id="create-room-form">
         <label class="block text-[0.65rem] tracking-[0.15em] uppercase text-gray-400 mb-2">
           Room Name
         </label>
@@ -147,6 +147,17 @@ const allRooms = await db
     }
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') document.getElementById('new-room-modal').style.display = 'none';
+    });
+    document.getElementById('create-room-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      var name = this.querySelector('input[name="name"]').value.trim();
+      if (!name) return;
+      var res = await fetch('/api/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'name=' + encodeURIComponent(name),
+      });
+      window.location.href = res.url;
     });
   </script>
 </body>
