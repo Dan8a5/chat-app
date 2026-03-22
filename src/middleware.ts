@@ -40,16 +40,20 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
 
   // Check if user is banned (skip for admin routes and login/logout)
   if (nick && !pathname.startsWith('/admin') && !pathname.startsWith('/api/admin')) {
-    const [ban] = await db
-      .select({ id: bannedNicknames.id })
-      .from(bannedNicknames)
-      .where(eq(bannedNicknames.nickname, nick))
-      .limit(1);
-    if (ban) {
-      ctx.cookies.delete('nickname', { path: '/' });
-      return pathname.startsWith('/api/')
-        ? new Response('Banned', { status: 403 })
-        : ctx.redirect('/');
+    try {
+      const [ban] = await db
+        .select({ id: bannedNicknames.id })
+        .from(bannedNicknames)
+        .where(eq(bannedNicknames.nickname, nick))
+        .limit(1);
+      if (ban) {
+        ctx.cookies.delete('nickname', { path: '/' });
+        return pathname.startsWith('/api/')
+          ? new Response('Banned', { status: 403 })
+          : ctx.redirect('/');
+      }
+    } catch (err) {
+      console.error('[middleware] ban check failed:', err);
     }
   }
 
@@ -68,8 +72,8 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
     }
   }
 
-  // Auth redirect for page routes
-  if (pathname !== '/' && !pathname.startsWith('/api/')) {
+  // Auth redirect for page routes (admin has its own guard above)
+  if (pathname !== '/' && !pathname.startsWith('/api/') && !pathname.startsWith('/admin')) {
     if (!nick) return ctx.redirect('/');
   }
 
