@@ -217,7 +217,7 @@ const nickAvatarBg = getAvatarBg(nick);
          onclick="event.stopPropagation()">
       <p class="text-[0.6rem] tracking-[0.2em] text-gray-400 uppercase mb-1">Channel</p>
       <h2 class="text-xl font-black tracking-tight uppercase mb-6">New Room</h2>
-      <form id="new-room-form" method="POST" action="/api/rooms">
+      <form id="new-room-form">
         <label class="block text-[0.65rem] tracking-[0.15em] uppercase text-gray-400 mb-2">Room Name</label>
         <input type="text" name="name"
                placeholder="e.g. General, Random..."
@@ -271,6 +271,10 @@ const nickAvatarBg = getAvatarBg(nick);
       </div>
     </div>
   </div>
+
+  <script is:inline define:vars={{ nick }}>
+    window.__CHAT_NICK__ = nick;
+  </script>
 
   <script is:inline>
     // ── Helpers ───────────────────────────────────────
@@ -374,7 +378,7 @@ const nickAvatarBg = getAvatarBg(nick);
     // ── Boot ──────────────────────────────────────────
     document.addEventListener('DOMContentLoaded', function() {
       const slug = document.body.dataset.slug;
-      const NICK = decodeURIComponent(document.cookie.split('; ').find(r => r.startsWith('nickname='))?.split('=')[1] ?? '');
+      const NICK = window.__CHAT_NICK__ || '';
 
       // Init labels
       const dark = localStorage.getItem('theme') === 'dark';
@@ -425,6 +429,20 @@ const nickAvatarBg = getAvatarBg(nick);
       evtSource.addEventListener('typing', function(e) {
         const el = document.getElementById('typing-indicator');
         if (el) el.innerHTML = e.data;
+      });
+
+      // ── New room form ─────────────────────────────────
+      const newRoomForm = document.getElementById('new-room-form');
+      newRoomForm && newRoomForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        var name = this.querySelector('input[name="name"]').value.trim();
+        if (!name) return;
+        var res = await fetch('/api/rooms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'name=' + encodeURIComponent(name),
+        });
+        window.location.href = res.url;
       });
 
       // ── Message form ──────────────────────────────────

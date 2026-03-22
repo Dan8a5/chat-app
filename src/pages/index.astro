@@ -10,7 +10,6 @@ if (nick) return Astro.redirect('/rooms');
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Live Chat — Join</title>
-  <script src="/alpine.min.js" defer is:inline></script>
 </head>
 <body class="min-h-screen bg-[#111] text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
 
@@ -31,26 +30,15 @@ if (nick) return Astro.redirect('/rooms');
     <div class="w-8 h-0.5 bg-[#a3e635] mb-8"></div>
 
     <!-- Form -->
-    <form method="post" action="/api/nickname"
-          x-data="{
-            nick: '',
-            error: '',
-            validate() {
-              if (this.nick.length > 0 && !/^[a-zA-Z0-9_]{3,20}$/.test(this.nick)) {
-                this.error = 'USE 3–20 LETTERS, NUMBERS, OR UNDERSCORES';
-              } else {
-                this.error = '';
-              }
-            }
-          }">
+    <form id="nickname-form">
       <label class="block text-[0.65rem] tracking-[0.15em] text-gray-400 uppercase mb-2">
         Choose a Nickname
       </label>
       <input
+        id="nick-input"
         type="text"
         name="nickname"
-        x-model="nick"
-        @input="validate()"
+        oninput="validateNick()"
         autocomplete="off"
         autocorrect="off"
         spellcheck="false"
@@ -60,12 +48,13 @@ if (nick) return Astro.redirect('/rooms');
                placeholder-gray-600 focus:outline-none focus:border-white transition-colors"
         required
       />
-      <p x-show="error" x-text="error"
-         class="text-[0.6rem] tracking-wider text-red-400 mt-1.5" x-cloak></p>
+      <p id="nick-error" style="display:none"
+         class="text-[0.6rem] tracking-wider text-red-400 mt-1.5"></p>
 
       <button
+        id="submit-btn"
         type="submit"
-        :disabled="error !== '' || nick.length < 3"
+        disabled
         class="mt-6 w-full bg-white text-black text-xs font-bold tracking-[0.2em] uppercase
                py-3 px-6 hover:bg-[#a3e635] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
         Join the Chat
@@ -76,6 +65,32 @@ if (nick) return Astro.redirect('/rooms');
       No password needed. Just pick a name.
     </p>
   </div>
+
+  <script is:inline>
+    var NICK_RE = /^[a-zA-Z0-9_]{3,20}$/;
+    function validateNick() {
+      var val = document.getElementById('nick-input').value;
+      var err = document.getElementById('nick-error');
+      var btn = document.getElementById('submit-btn');
+      var invalid = val.length > 0 && !NICK_RE.test(val);
+      err.textContent = invalid ? 'USE 3–20 LETTERS, NUMBERS, OR UNDERSCORES' : '';
+      err.style.display = invalid ? 'block' : 'none';
+      btn.disabled = invalid || val.length < 3;
+    }
+    document.getElementById('nickname-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      var nick = document.getElementById('nick-input').value.trim();
+      if (!NICK_RE.test(nick)) return;
+      var res = await fetch('/api/nickname', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'nickname=' + encodeURIComponent(nick),
+      });
+      if (res.ok || res.redirected) {
+        window.location.href = '/rooms';
+      }
+    });
+  </script>
 
   <!-- Footer -->
   <div class="absolute bottom-4 left-0 right-0 flex justify-center">
