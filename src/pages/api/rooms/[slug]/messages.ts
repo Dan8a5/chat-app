@@ -1,10 +1,10 @@
 import type { APIRoute } from 'astro';
 import { db } from '../../../../lib/db/index.js';
-import { rooms, messages } from '../../../../lib/db/schema.js';
+import { rooms, messages, userProfiles } from '../../../../lib/db/schema.js';
 import { messageHtml, loadMoreSentinelHtml } from '../../../../lib/html/fragments.js';
 import { getRoomEmitter, getPresence } from '../../../../lib/sse/emitter.js';
 import { presenceHtml } from '../../../../lib/html/fragments.js';
-import { eq, lt, desc, and } from 'drizzle-orm';
+import { eq, lt, desc, and, sql } from 'drizzle-orm';
 
 async function getRoom(slug: string) {
   const [room] = await db.select().from(rooms).where(eq(rooms.slug, slug)).limit(1);
@@ -79,6 +79,14 @@ export const POST: APIRoute = async ({ params, request, cookies }) => {
   const [msg] = await db.insert(messages)
     .values({ roomId: room.id, nickname: nick, content, type: 'user' })
     .returning();
+
+  // Upsert user profile and increment message count
+  await db.insert(userProfiles)
+    .values({ nickname: nick, messageCount: 1 })
+    .onConflictDoUpdate({
+      target: userProfiles.nickname,
+      set: { messageCount: sql`${userProfiles.messageCount} + 1` },
+    });
 
   const emitter = getRoomEmitter(slug);
   emitter.emit('message', messageHtml(msg));

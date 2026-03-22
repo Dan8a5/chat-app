@@ -1,8 +1,8 @@
 ---
 import '../../styles/global.css';
 import { db } from '../../lib/db/index.js';
-import { rooms, messages, bannedNicknames } from '../../lib/db/schema.js';
-import { eq, count } from 'drizzle-orm';
+import { rooms, messages, bannedNicknames, userProfiles } from '../../lib/db/schema.js';
+import { eq, count, desc } from 'drizzle-orm';
 
 const allRooms = await db
   .select({
@@ -19,7 +19,11 @@ const allRooms = await db
 
 const [{ total: totalMessages }] = await db.select({ total: count() }).from(messages);
 const [{ total: totalBanned }] = await db.select({ total: count() }).from(bannedNicknames);
+const [{ total: totalUsers }] = await db.select({ total: count() }).from(userProfiles);
 const allBanned = await db.select().from(bannedNicknames).orderBy(bannedNicknames.bannedAt);
+
+const bannedSet = new Set(allBanned.map(b => b.nickname));
+const allUsers = await db.select().from(userProfiles).orderBy(desc(userProfiles.messageCount));
 ---
 <!doctype html>
 <html lang="en">
@@ -53,7 +57,7 @@ const allBanned = await db.select().from(bannedNicknames).orderBy(bannedNickname
     <section>
       <p class="text-[0.6rem] tracking-[0.2em] text-gray-400 uppercase mb-1">Overview</p>
       <h2 class="text-2xl font-black tracking-tight uppercase mb-6">Dashboard</h2>
-      <div class="grid grid-cols-3 gap-4">
+      <div class="grid grid-cols-4 gap-4">
         <div class="border border-gray-200 dark:border-gray-800 px-5 py-4">
           <p class="text-[0.6rem] tracking-[0.15em] uppercase text-gray-400 mb-1">Rooms</p>
           <p class="text-2xl font-black">{allRooms.length}</p>
@@ -61,6 +65,10 @@ const allBanned = await db.select().from(bannedNicknames).orderBy(bannedNickname
         <div class="border border-gray-200 dark:border-gray-800 px-5 py-4">
           <p class="text-[0.6rem] tracking-[0.15em] uppercase text-gray-400 mb-1">Messages</p>
           <p class="text-2xl font-black">{totalMessages}</p>
+        </div>
+        <div class="border border-gray-200 dark:border-gray-800 px-5 py-4">
+          <p class="text-[0.6rem] tracking-[0.15em] uppercase text-gray-400 mb-1">Users</p>
+          <p class="text-2xl font-black">{totalUsers}</p>
         </div>
         <div class="border border-gray-200 dark:border-gray-800 px-5 py-4">
           <p class="text-[0.6rem] tracking-[0.15em] uppercase text-gray-400 mb-1">Banned</p>
@@ -105,6 +113,55 @@ const allBanned = await db.select().from(bannedNicknames).orderBy(bannedNickname
       )}
     </section>
 
+    <!-- Users -->
+    <section>
+      <p class="text-[0.6rem] tracking-[0.2em] text-gray-400 uppercase mb-1">Manage</p>
+      <h2 class="text-xl font-black tracking-tight uppercase mb-4">Users</h2>
+
+      {allUsers.length === 0 ? (
+        <p class="text-[0.7rem] tracking-[0.1em] text-gray-400 uppercase py-6">No user profiles yet.</p>
+      ) : (
+        <div class="border border-gray-200 dark:border-gray-800 divide-y divide-gray-200 dark:divide-gray-800">
+          {allUsers.map(user => {
+            const isBanned = bannedSet.has(user.nickname);
+            return (
+              <div class="flex items-center justify-between px-4 py-3">
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2">
+                    <p class="text-xs font-bold tracking-[0.1em] uppercase">{user.nickname}</p>
+                    {isBanned && (
+                      <span class="text-[0.55rem] tracking-widest uppercase font-bold text-red-500 border border-red-300 dark:border-red-800 px-1.5 py-0.5">Banned</span>
+                    )}
+                  </div>
+                  <p class="text-[0.6rem] tracking-widest text-gray-400 uppercase mt-0.5">
+                    {user.messageCount} messages · Joined {new Date(user.createdAt).toLocaleDateString()}
+                    {user.bio && ` · "${user.bio}"`}
+                  </p>
+                </div>
+                <div class="flex items-center gap-3 ml-4 shrink-0">
+                  {isBanned ? (
+                    <button
+                      data-nick={user.nickname}
+                      onclick="unbanUser(this)"
+                      class="text-[0.6rem] tracking-[0.15em] uppercase font-bold text-gray-300 dark:text-gray-700 hover:text-black dark:hover:text-white transition-colors">
+                      Unban
+                    </button>
+                  ) : (
+                    <button
+                      data-nick={user.nickname}
+                      onclick="banUser(this)"
+                      class="text-[0.6rem] tracking-[0.15em] uppercase font-bold text-gray-300 dark:text-gray-700 hover:text-red-500 dark:hover:text-red-400 transition-colors">
+                      Ban
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+
     <!-- Banned Users -->
     <section>
       <p class="text-[0.6rem] tracking-[0.2em] text-gray-400 uppercase mb-1">Access</p>
@@ -143,6 +200,13 @@ const allBanned = await db.select().from(bannedNicknames).orderBy(bannedNickname
       var name = btn.dataset.name;
       if (!confirm('Delete "' + name + '" and all its messages?')) return;
       await fetch('/api/admin/rooms/' + slug, { method: 'DELETE' });
+      window.location.reload();
+    }
+
+    async function banUser(btn) {
+      var nick = btn.dataset.nick;
+      if (!confirm('Ban "' + nick + '"?')) return;
+      await fetch('/api/admin/users/' + encodeURIComponent(nick) + '/ban', { method: 'POST' });
       window.location.reload();
     }
 

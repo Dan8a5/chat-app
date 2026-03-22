@@ -2,7 +2,7 @@
 
 ![CI](https://github.com/Dan8a5/chat-app/actions/workflows/ci.yml/badge.svg)
 
-A real-time chat application with rooms, presence, typing indicators, and @mention support.
+A real-time chat application with rooms, presence, typing indicators, @mention support, user profiles, and an admin panel for moderation.
 
 **Live on Railway** — auto-deploys on every merge to `main`.
 
@@ -31,12 +31,14 @@ Create a `.env` file in the project root:
 
 ```
 DATABASE_URL=postgresql://user:password@localhost:5432/chatapp
+ADMIN_PASSWORD=your-admin-password
+ADMIN_TOKEN=random-secret-string
 ```
 
-### 3. Apply migrations
+### 3. Sync the schema
 
 ```bash
-npm run db:migrate
+npm run db:push
 ```
 
 ### 4. Start the dev server

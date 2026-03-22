@@ -2,7 +2,7 @@
 import '../../styles/global.css';
 
 const session = Astro.cookies.get('admin_session')?.value;
-if (session && session === import.meta.env.ADMIN_TOKEN) {
+if (session && session === process.env.ADMIN_TOKEN) {
   return Astro.redirect('/admin/dashboard');
 }
 
