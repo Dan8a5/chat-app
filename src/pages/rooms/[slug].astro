@@ -201,6 +201,75 @@ const nickAvatarBg = getAvatarBg(nick);
     </div>
   </div>
 
+  <!-- ── Profile Card Modal ───────────────────────── -->
+  <div id="profile-modal" style="display:none"
+       onclick="if(event.target===this)this.style.display='none'"
+       class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-[#111] border border-gray-200 dark:border-gray-800 p-8 w-full max-w-sm mx-4"
+         onclick="event.stopPropagation()">
+      <p class="text-[0.6rem] tracking-[0.2em] text-gray-400 uppercase mb-4">Profile</p>
+      <div class="flex items-center gap-4 mb-6">
+        <span id="profile-avatar"
+              class="w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-black shrink-0">
+        </span>
+        <div>
+          <p id="profile-nick" class="text-xl font-black tracking-tight uppercase"></p>
+          <p id="profile-since" class="text-[0.6rem] tracking-[0.15em] uppercase text-gray-400 mt-0.5"></p>
+        </div>
+      </div>
+      <div class="mb-4">
+        <p class="text-[0.6rem] tracking-[0.15em] uppercase text-gray-400 mb-1">Messages</p>
+        <p id="profile-count" class="text-sm font-bold">0</p>
+      </div>
+      <div id="profile-bio-section" class="mb-6">
+        <p class="text-[0.6rem] tracking-[0.15em] uppercase text-gray-400 mb-1">Bio</p>
+        <p id="profile-bio" class="text-sm text-gray-600 dark:text-gray-400 italic"></p>
+      </div>
+      <div class="flex gap-3">
+        <button type="button" onclick="document.getElementById('profile-modal').style.display='none'"
+                class="flex-1 text-[0.65rem] tracking-[0.15em] uppercase font-bold border border-gray-300 dark:border-gray-700 py-2.5 hover:border-black dark:hover:border-white transition-colors">
+          Close
+        </button>
+        <button id="profile-edit-btn" type="button" style="display:none"
+                onclick="openBioEdit()"
+                class="flex-1 text-[0.65rem] tracking-[0.15em] uppercase font-bold bg-black dark:bg-white text-white dark:text-black py-2.5 hover:bg-accent hover:text-black transition-colors">
+          Edit Bio
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Bio Edit Modal ────────────────────────────── -->
+  <div id="bio-modal" style="display:none"
+       onclick="if(event.target===this)this.style.display='none'"
+       class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-[#111] border border-gray-200 dark:border-gray-800 p-8 w-full max-w-sm mx-4"
+         onclick="event.stopPropagation()">
+      <p class="text-[0.6rem] tracking-[0.2em] text-gray-400 uppercase mb-1">Profile</p>
+      <h2 class="text-xl font-black tracking-tight uppercase mb-6">Edit Bio</h2>
+      <form id="bio-form">
+        <label class="block text-[0.65rem] tracking-[0.15em] uppercase text-gray-400 mb-2">
+          Bio <span class="text-gray-300 dark:text-gray-700 normal-case tracking-normal">(max 200 chars)</span>
+        </label>
+        <textarea id="bio-input" name="bio" maxlength="200" rows="3"
+                  placeholder="Tell people about yourself..."
+                  class="w-full bg-transparent border-0 border-b border-gray-300 dark:border-gray-700
+                         text-sm px-0 py-2 focus:outline-none focus:border-black dark:focus:border-white
+                         placeholder-gray-400 transition-colors resize-none"></textarea>
+      </form>
+      <div class="flex gap-3 mt-6">
+        <button type="button" onclick="document.getElementById('bio-modal').style.display='none'"
+                class="flex-1 text-[0.65rem] tracking-[0.15em] uppercase font-bold border border-gray-300 dark:border-gray-700 py-2.5 hover:border-black dark:hover:border-white transition-colors">
+          Cancel
+        </button>
+        <button type="submit" form="bio-form"
+                class="flex-1 text-[0.65rem] tracking-[0.15em] uppercase font-bold bg-black dark:bg-white text-white dark:text-black py-2.5 hover:bg-accent hover:text-black transition-colors">
+          Save
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- ── @mention toast ────────────────────────────── -->
   <div id="mention-toast" style="display:none"
        onclick="this.style.display='none'"
@@ -370,10 +439,64 @@ const nickAvatarBg = getAvatarBg(nick);
       if (e.key === 'Escape') {
         document.getElementById('new-room-modal').style.display = 'none';
         document.getElementById('rename-modal').style.display = 'none';
+        document.getElementById('bio-modal').style.display = 'none';
+        document.getElementById('profile-modal').style.display = 'none';
         document.getElementById('mention-dropdown').style.display = 'none';
         closeSidebar();
       }
     });
+
+    // ── Profile card ──────────────────────────────────
+    var _currentProfileNick = null;
+    async function openProfile(nick) {
+      _currentProfileNick = nick;
+      const AVATAR_COLORS = ['#3b82f6','#22c55e','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#f97316'];
+      function avatarBgLocal(n) {
+        let h = 0;
+        for (let i = 0; i < n.length; i++) h = (h * 31 + n.charCodeAt(i)) & 0xffff;
+        return AVATAR_COLORS[h % AVATAR_COLORS.length];
+      }
+      const av = document.getElementById('profile-avatar');
+      const nickEl = document.getElementById('profile-nick');
+      const sinceEl = document.getElementById('profile-since');
+      const countEl = document.getElementById('profile-count');
+      const bioEl = document.getElementById('profile-bio');
+      const editBtn = document.getElementById('profile-edit-btn');
+      if (av) { av.textContent = nick.charAt(0).toUpperCase(); av.style.background = avatarBgLocal(nick); }
+      if (nickEl) nickEl.textContent = nick.toUpperCase();
+      if (sinceEl) sinceEl.textContent = '';
+      if (countEl) countEl.textContent = '—';
+      if (bioEl) bioEl.textContent = '';
+      if (editBtn) editBtn.style.display = 'none';
+      document.getElementById('profile-modal').style.display = 'flex';
+      try {
+        const res = await fetch('/api/profile/' + encodeURIComponent(nick));
+        const data = await res.json();
+        if (data) {
+          if (sinceEl) sinceEl.textContent = 'Joined ' + new Date(data.createdAt).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
+          if (countEl) countEl.textContent = data.messageCount.toLocaleString();
+          if (bioEl) bioEl.textContent = data.bio || '';
+        }
+        const NICK = window.__CHAT_NICK__ || '';
+        if (editBtn && nick === NICK) editBtn.style.display = '';
+      } catch(e) {}
+    }
+
+    document.addEventListener('click', function(e) {
+      var target = e.target.closest('[data-profile-nick]');
+      if (target) {
+        e.stopPropagation();
+        openProfile(target.dataset.profileNick);
+      }
+    });
+
+    function openBioEdit() {
+      document.getElementById('profile-modal').style.display = 'none';
+      const bioInput = document.getElementById('bio-input');
+      const bioEl = document.getElementById('profile-bio');
+      if (bioInput && bioEl) bioInput.value = bioEl.textContent;
+      document.getElementById('bio-modal').style.display = 'flex';
+    }
 
     // ── Boot ──────────────────────────────────────────
     document.addEventListener('DOMContentLoaded', function() {
@@ -520,6 +643,21 @@ const nickAvatarBg = getAvatarBg(nick);
           document.getElementById('rename-modal').style.display = 'none';
           document.getElementById('rename-input').value = '';
         }
+      });
+
+      // ── Bio form ──────────────────────────────────────
+      const bioForm = document.getElementById('bio-form');
+      bioForm && bioForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const bio = (document.getElementById('bio-input')?.value ?? '').trim();
+        await fetch('/api/profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'bio=' + encodeURIComponent(bio),
+        });
+        const bioEl = document.getElementById('profile-bio');
+        if (bioEl) bioEl.textContent = bio;
+        document.getElementById('bio-modal').style.display = 'none';
       });
 
       // ── Load more ─────────────────────────────────────

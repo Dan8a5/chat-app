@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, text, uuid, timestamp, integer } from 'drizzle-orm/pg-core';
 
 export const rooms = pgTable('rooms', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -23,6 +23,14 @@ export const bannedNicknames = pgTable('banned_nicknames', {
   reason: text('reason'),
 });
 
+export const userProfiles = pgTable('user_profiles', {
+  nickname: text('nickname').primaryKey(),
+  bio: text('bio'),
+  messageCount: integer('message_count').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
 export type Room = typeof rooms.$inferSelect;
 export type Message = typeof messages.$inferSelect;
 export type BannedNickname = typeof bannedNicknames.$inferSelect;
+export type UserProfile = typeof userProfiles.$inferSelect;
