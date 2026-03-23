@@ -28,10 +28,10 @@ export function messageHtml(msg: Message): string {
   const bg = avatarBg(msg.nickname);
   const content = highlightMentions(esc(msg.content));
   return `<div class="chat-msg" data-nick="${esc(msg.nickname)}" id="msg-${msg.id}">
-    <span class="chat-avatar" style="background:${bg}">${initial}</span>
+    <span class="chat-avatar" style="background:${bg};cursor:pointer" data-profile-nick="${esc(msg.nickname)}">${initial}</span>
     <div class="chat-body">
       <div class="chat-meta">
-        <span class="chat-nick">${esc(msg.nickname).toUpperCase()}</span>
+        <span class="chat-nick" style="cursor:pointer" data-profile-nick="${esc(msg.nickname)}">${esc(msg.nickname).toUpperCase()}</span>
         <span class="chat-time">${time}</span>
       </div>
       <p class="chat-content">${content}</p>

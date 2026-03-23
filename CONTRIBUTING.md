@@ -27,10 +27,14 @@ Create a `.env` file in the project root:
 
 ```
 DATABASE_URL=postgresql://user:password@localhost:5432/chatapp
+ADMIN_PASSWORD=your-admin-password
+ADMIN_TOKEN=random-secret-string
 ```
 
 For local dev pointing at Railway's database, use the **public proxy URL** from Railway:
 Railway → PostgreSQL service → Variables → `DATABASE_PUBLIC_URL`
+
+`ADMIN_PASSWORD` is the password used to log into `/admin`. `ADMIN_TOKEN` is the value stored in the `admin_session` cookie — it must be set to the same value in both local `.env` and Railway service variables.
 
 ### Run locally
 
@@ -56,16 +60,15 @@ Schema lives in `src/lib/db/schema.ts`. Migration files live in `drizzle/`.
 ### Workflow for schema changes
 
 1. Edit `src/lib/db/schema.ts`
-2. Generate a migration file:
+2. Sync locally with:
    ```bash
-   npm run db:generate
+   npm run db:push
    ```
-3. Commit the new file in `drizzle/` along with your schema change
-4. On the next Railway deploy, `drizzle-kit migrate` runs automatically before the server starts (see Railway start command below)
+3. For production, manually run the equivalent SQL in Railway → PostgreSQL → Query tab (see gotcha below)
 
-### Never use `db:push` in production
+### Adding tables to production
 
-`npm run db:push` directly syncs the schema without migration files — fine for early prototyping locally, but don't run it against the production database. Always use `db:generate` + `db:migrate`.
+Do **not** rely on `db:migrate` running on Railway — it causes a deadlock loop (see Gotchas). Instead, manually run the `CREATE TABLE` SQL in the Railway PostgreSQL query tool after deploying the code.
 
 ### Apply migrations locally
 
@@ -128,9 +131,8 @@ Merging to `main` triggers an automatic Railway redeploy:
 
 1. Railway detects the push to `main`
 2. Runs `npm run build` (Astro build → `./dist`)
-3. Runs the start command: `npm run db:migrate && node ./dist/server/entry.mjs`
-   - Migrations run first on every deploy — safe to run repeatedly, only applies pending ones
-   - Then the Node server starts
+3. Runs the start command: `node ./dist/server/entry.mjs`
+   - **Do not prepend `npm run db:migrate &&`** — see Gotchas for why this causes an infinite deploy loop
 
 ### Two DATABASE_URL values in Railway
 
@@ -140,6 +142,29 @@ Merging to `main` triggers an automatic Railway redeploy:
 | `DATABASE_PUBLIC_URL` | GitHub Actions CI, local dev pointing at Railway DB |
 
 Set the chat-app service's `DATABASE_URL` to the **internal** URL (`postgres.railway.internal`) for Railway-to-Railway communication. Use the public proxy URL everywhere outside Railway.
+
+---
+
+## Features
+
+### Admin panel (`/admin`)
+
+Password-protected dashboard for moderation. Requires `ADMIN_PASSWORD` and `ADMIN_TOKEN` env vars.
+
+- **Login**: `POST /api/admin/login` — checks `ADMIN_PASSWORD`, sets `admin_session` cookie (value = `ADMIN_TOKEN`, httpOnly, 8hr TTL)
+- **Dashboard** (`/admin/dashboard`): stats, room list with delete, user profile list with ban/unban, banned users list
+- **Room detail** (`/admin/rooms/[slug]`): last 200 messages with per-message delete and per-user ban
+- **Ban flow**: inserts into `banned_nicknames`, emits SSE `kicked` event to all room connections — the banned user's client immediately redirects to `/`
+- All `/admin/*` and `/api/admin/*` routes (except the login page and login API) are guarded by middleware checking the `admin_session` cookie
+
+### User profiles
+
+Every user who sends a message gets a profile record in `user_profiles` (`nickname` PK, `bio`, `message_count`, `created_at`).
+
+- Message count increments atomically on every `POST /api/rooms/[slug]/messages`
+- Clicking any avatar or username in chat opens a profile card modal
+- Users can set a bio (max 200 chars) via `POST /api/profile` — only their own profile
+- `GET /api/profile/[nick]` returns profile JSON publicly
 
 ---
 
@@ -212,6 +237,12 @@ Alpine and htmx were loaded from the `public/` directory via `<script src="..." 
 ### Dark mode flash
 
 Dark mode is applied by an inline `<script>` in `<head>` that reads `localStorage` and adds the `dark` class to `document.documentElement` immediately. This must stay in `<head>`, not deferred, or you get a white flash on page load in dark mode.
+
+### `db:migrate` causes an infinite deploy loop on Railway
+
+`drizzle-kit migrate` acquires a migration lock in the database. Railway's health check kills the container if no port is open within a timeout (migrations don't open a port). When killed mid-migration, the lock is not released — the next restart hangs waiting for the lock indefinitely. Railway kills it again. Infinite loop.
+
+**Fix**: keep the Railway start command as just `node ./dist/server/entry.mjs`. Create new tables manually in Railway → PostgreSQL → Query tab using `CREATE TABLE IF NOT EXISTS ...`.
 
 ### `npx tsc --noEmit` does not work in CI
 
